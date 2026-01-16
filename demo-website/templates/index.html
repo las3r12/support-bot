@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>BookNest — Modern Online Book Store</title>
+
+  <style>
+    :root {
+      --primary: #6366f1;
+      --primary-dark: #4f46e5;
+      --accent: #22c55e;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: #e5e7eb;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: Inter, system-ui, sans-serif;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    a { text-decoration: none; color: inherit; }
+
+    /* NAV */
+    nav {
+      background: white;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .nav-inner {
+      max-width: 1200px;
+      margin: auto;
+      padding: 1rem 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .logo {
+      font-weight: 800;
+      font-size: 1.3rem;
+      color: var(--primary-dark);
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 1.5rem;
+      font-weight: 500;
+    }
+
+    .nav-links a:hover { color: var(--primary); }
+
+    /* HEADER */
+    header {
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: white;
+      padding: 5rem 1.5rem;
+    }
+
+    .header-inner {
+      max-width: 1200px;
+      margin: auto;
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 3rem;
+      align-items: center;
+    }
+
+    header h1 {
+      font-size: 3rem;
+      line-height: 1.1;
+      margin-bottom: 1rem;
+    }
+
+    header p {
+      font-size: 1.15rem;
+      opacity: 0.95;
+      margin-bottom: 2rem;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 1rem;
+    }
+
+    .btn {
+      padding: 0.75rem 1.4rem;
+      border-radius: 10px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      background: white;
+      color: var(--primary-dark);
+    }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.6);
+      color: white;
+    }
+
+    .hero-card {
+      background: rgba(255,255,255,0.15);
+      border-radius: 18px;
+      padding: 2rem;
+      backdrop-filter: blur(10px);
+    }
+
+    /* SECTIONS */
+    section {
+      max-width: 1200px;
+      margin: 4rem auto;
+      padding: 0 1.5rem;
+    }
+
+    .section-header {
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+
+    .section-header h2 {
+      font-size: 2.3rem;
+      margin-bottom: 0.6rem;
+    }
+
+    .section-header p {
+      color: var(--muted);
+    }
+
+    /* CATEGORIES */
+    .categories {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .category {
+      background: var(--card);
+      padding: 1.8rem;
+      border-radius: 16px;
+      text-align: center;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.06);
+    }
+
+    /* BOOK GRID */
+    .book-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 2rem;
+    }
+
+    .book-card {
+      background: var(--card);
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.08);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .book-card img {
+      width: 100%;
+      height: 280px;
+      object-fit: cover;
+    }
+
+    .book-info {
+      padding: 1.2rem;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+    }
+
+    .author {
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-bottom: 0.6rem;
+    }
+
+    .description {
+      font-size: 0.9rem;
+      color: var(--muted);
+      flex: 1;
+    }
+
+    .price-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 1rem;
+    }
+
+    .price { font-weight: 700; }
+
+    .buy-btn {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 0.5rem 0.9rem;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    /* FAQ */
+    .faq {
+      max-width: 900px;
+      margin: auto;
+    }
+
+    details {
+      background: var(--card);
+      border-radius: 14px;
+      padding: 1.2rem 1.4rem;
+      margin-bottom: 1rem;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.06);
+    }
+
+    summary { font-weight: 600; cursor: pointer; }
+
+    details p { margin-top: 0.8rem; color: var(--muted); }
+
+    /* FOOTER */
+    footer {
+      background: #020617;
+      color: #cbd5f5;
+      padding: 4rem 1.5rem;
+      margin-top: 5rem;
+    }
+
+    .footer-inner {
+      max-width: 1200px;
+      margin: auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 2rem;
+    }
+
+    footer h4 { color: white; margin-bottom: 0.8rem; }
+
+    footer a {
+      display: block;
+      color: #94a3b8;
+      margin-bottom: 0.4rem;
+      font-size: 0.9rem;
+    }
+
+    footer p {
+      font-size: 0.85rem;
+      color: #94a3b8;
+    }
+
+    @media (max-width: 900px) {
+      .header-inner { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <div class="logo">📚 BookNest</div>
+    <div class="nav-links">
+      <a href="#about">About</a>
+      <a href="#categories">Categories</a>
+      <a href="#featured">Featured</a>
+      <a href="#faq">FAQ</a>
+    </div>
+  </div>
+</nav>
+
+<header>
+  <div class="header-inner">
+    <div>
+      <h1>Books That Shape How You Think</h1>
+      <p>
+        BookNest is a modern online bookstore focused on depth, clarity,
+        and long-term value. Discover books that matter.
+      </p>
+      <div class="hero-actions">
+        <button class="btn btn-primary">Browse Books</button>
+        <button class="btn btn-outline">Learn More</button>
+      </div>
+    </div>
+
+    <div class="hero-card">
+      <h3>Weekly Highlight</h3>
+      <p>
+        <strong>The Art of Deep Focus</strong><br>
+        A practical guide to eliminating distractions and mastering attention.
+      </p>
+    </div>
+  </div>
+</header>
+
+<section id="about">
+  <div class="section-header">
+    <h2>About BookNest</h2>
+    <p>A bookstore designed for thoughtful readers</p>
+  </div>
+
+  <p style="max-width:900px;margin:auto;color:#64748b;">
+    BookNest was created to bring intention back into reading. In a world
+    optimized for speed and noise, books remain one of the few mediums
+    that reward patience and depth. Our goal is to create a calm, focused
+    environment where readers can explore meaningful ideas.
+    <br><br>
+    This website is a demo project showing how a modern online bookstore
+    might look, feel, and communicate with its audience.
+  </p>
+</section>
+
+<section id="categories">
+  <div class="section-header">
+    <h2>Categories</h2>
+    <p>Carefully organized collections</p>
+  </div>
+
+  <div class="categories">
+    <div class="category"><h3>Programming</h3><p>Software, AI, Web, Systems</p></div>
+    <div class="category"><h3>Design</h3><p>UX, UI, Visual Design</p></div>
+    <div class="category"><h3>Business</h3><p>Startups, Economics</p></div>
+    <div class="category"><h3>Self-Improvement</h3><p>Focus, Habits, Mindset</p></div>
+    <div class="category"><h3>Fiction</h3><p>Novels & Storytelling</p></div>
+  </div>
+</section>
+
+<section id="featured">
+  <div class="section-header">
+    <h2>Featured Books</h2>
+    <p>Editor’s selection</p>
+  </div>
+
+  <div class="book-grid">
+    <div class="book-card">
+      <img src="https://picsum.photos/400/600?1">
+      <div class="book-info">
+        <h4>Clean Code Explained</h4>
+        <div class="author">Robert Martin</div>
+        <div class="description">
+          A modern interpretation of clean code principles with practical examples.
+        </div>
+        <div class="price-row">
+          <div class="price">$29.99</div>
+          <button class="buy-btn">Add</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="book-card">
+      <img src="https://picsum.photos/400/600?2">
+      <div class="book-info">
+        <h4>The Focus Formula</h4>
+        <div class="author">Daniel Brooks</div>
+        <div class="description">
+          Learn how to structure your environment for deep, uninterrupted work.
+        </div>
+        <div class="price-row">
+          <div class="price">$18.50</div>
+          <button class="buy-btn">Add</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="book-card">
+      <img src="https://picsum.photos/400/600?3">
+      <div class="book-info">
+        <h4>Design Systems</h4>
+        <div class="author">Sarah Kim</div>
+        <div class="description">
+          Build scalable, consistent design languages for modern applications.
+        </div>
+        <div class="price-row">
+          <div class="price">$24.00</div>
+          <button class="buy-btn">Add</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="section-header">
+    <h2>Frequently Asked Questions</h2>
+    <p>Clear answers build trust</p>
+  </div>
+
+  <div class="faq">
+    <details>
+      <summary>Is this a real store?</summary>
+      <p>No. This is a demonstration website with fictional products.</p>
+    </details>
+
+    <details>
+      <summary>Do you sell eBooks?</summary>
+      <p>Yes. Most titles are available as PDF and EPUB downloads.</p>
+    </details>
+
+    <details>
+      <summary>Are payments secure?</summary>
+      <p>
+        In a real deployment, payments would be processed by secure,
+        PCI-compliant providers.
+      </p>
+    </details>
+
+    <details>
+      <summary>Can I return books?</summary>
+      <p>Physical books could be returned within 14 days in unused condition.</p>
+    </details>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-inner">
+    <div>
+      <h4>About This Demo</h4>
+      <p>
+        BookNest is a fictional online bookstore created for design
+        and educational purposes only.
+      </p>
+    </div>
+
+    <div>
+      <h4>Explore</h4>
+      <a href="#">All Books</a>
+      <a href="#">Categories</a>
+      <a href="#">Best Sellers</a>
+    </div>
+
+    <div>
+      <h4>Support</h4>
+      <a href="#">Help Center</a>
+      <a href="#">Shipping</a>
+      <a href="#">Returns</a>
+    </div>
+
+    <div>
+      <h4>Legal</h4>
+      <a href="#">Privacy Policy</a>
+      <a href="#">Terms of Service</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

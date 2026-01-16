@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Login</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <style>
+    :root {
+      --bg: #f6faf7;
+      --card: #ffffff;
+      --border: #d1fae5;
+      --input-bg: #f9fffb;
+      --text: #064e3b;
+      --muted: #4b7f6b;
+      --accent: #22c55e;
+      --accent-hover: #16a34a;
+      --focus: rgba(34, 197, 94, 0.25);
+      --radius: 14px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(135deg, #ecfdf5, var(--bg));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text);
+    }
+
+    .card {
+      width: 100%;
+      max-width: 380px;
+      background: var(--card);
+      padding: 28px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      box-shadow:
+        0 12px 28px rgba(0, 0, 0, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      text-align: center;
+      font-size: 1.6rem;
+    }
+
+    p {
+      margin: 0 0 24px;
+      text-align: center;
+      font-size: 0.95rem;
+      color: var(--muted);
+    }
+
+    form {
+      display: grid;
+      gap: 16px;
+    }
+
+    input {
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 11px 12px;
+      font-size: 0.95rem;
+      color: var(--text);
+      outline: none;
+      transition: border 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    input::placeholder {
+      color: #9ca3af;
+    }
+
+    input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--focus);
+      background: #ffffff;
+    }
+
+    button {
+      margin-top: 6px;
+      background: linear-gradient(135deg, var(--accent), #4ade80);
+      border: none;
+      border-radius: 12px;
+      padding: 12px;
+      font-size: 1rem;
+      font-weight: 600;
+      color: white;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      box-shadow: 0 8px 16px rgba(34, 197, 94, 0.35);
+    }
+
+    button:hover {
+      background: linear-gradient(135deg, var(--accent-hover), #22c55e);
+      transform: translateY(-1px);
+      box-shadow: 0 12px 24px rgba(34, 197, 94, 0.45);
+    }
+
+    button:active {
+      transform: translateY(0);
+      box-shadow: 0 6px 12px rgba(34, 197, 94, 0.35);
+    }
+
+    .error {
+      margin-top: 12px;
+      text-align: center;
+      font-size: 0.85rem;
+      color: #dc2626;
+    }
+
+    @media (max-width: 420px) {
+      .card {
+        border-radius: 0;
+        min-height: 100vh;
+        box-shadow: none;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="card">
+    <h1>Welcome back</h1>
+    <p>Sign in to your account</p>
+
+    <form method="POST">
+      <input
+        type="text"
+        name="username"
+        placeholder="Email or username"
+        required
+        autofocus
+      >
+
+      <input
+        type="password"
+        name="password"
+        placeholder="Password"
+        required
+      >
+
+      <button type="submit">Login</button>
+    </form>
+
+    <!--
+      Show this only if login fails:
+      <div class="error">Invalid username or password</div>
+    -->
+  </div>
+</body>
+</html>

@@ -1,0 +1,82 @@
+
+📚 BookNest
+About
+Categories
+Featured
+FAQ
+Books That Shape How You Think
+
+BookNest is a modern online bookstore focused on depth, clarity, and long-term value. Discover books that matter.
+Weekly Highlight
+
+The Art of Deep Focus
+A practical guide to eliminating distractions and mastering attention.
+About BookNest
+
+A bookstore designed for thoughtful readers
+
+BookNest was created to bring intention back into reading. In a world optimized for speed and noise, books remain one of the few mediums that reward patience and depth. Our goal is to create a calm, focused environment where readers can explore meaningful ideas.
+
+This website is a demo project showing how a modern online bookstore might look, feel, and communicate with its audience.
+Categories
+
+Carefully organized collections
+Programming
+
+Software, AI, Web, Systems
+Design
+
+UX, UI, Visual Design
+Business
+
+Startups, Economics
+Self-Improvement
+
+Focus, Habits, Mindset
+Fiction
+
+Novels & Storytelling
+Featured Books
+
+Editor’s selection
+Clean Code Explained
+Robert Martin
+A modern interpretation of clean code principles with practical examples.
+$29.99
+The Focus Formula
+Daniel Brooks
+Learn how to structure your environment for deep, uninterrupted work.
+$18.50
+Design Systems
+Sarah Kim
+Build scalable, consistent design languages for modern applications.
+$24.00
+Frequently Asked Questions
+
+Clear answers build trust
+Is this a real store?
+
+No. This is a demonstration website with fictional products.
+Do you sell eBooks?
+
+Yes. Most titles are available as PDF and EPUB downloads.
+Are payments secure?
+
+In a real deployment, payments would be processed by secure, PCI-compliant providers.
+Can I return books?
+
+Physical books could be returned within 14 days in unused condition.
+About This Demo
+
+BookNest is a fictional online bookstore created for design and educational purposes only.
+Explore
+All Books
+Categories
+Best Sellers
+Support
+Help Center
+Shipping
+Returns
+Legal
+Privacy Policy
+Terms of Service
