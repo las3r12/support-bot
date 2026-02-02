@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, session, redirect, render_template
+from flask import Flask, request, jsonify, session, redirect, render_template, make_response
 from db import create_user, check_password, get_text, create_tables
 import json
 import os
@@ -45,7 +45,6 @@ def login():
 def index():
     if "user_id" not in session:
         return redirect("/login")
-    return redirect("/ask")
     text = get_text(session['user_id'])
     return render_template('index.html', text=text)
 
@@ -55,18 +54,30 @@ def ask():
         return redirect("/login")
     return render_template("widget.html")
 
+@app.route("/ask_question", methods=["OPTIONS"])
+def ask_question_options():
+    response = make_response()
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "POST, GET, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    return response
+
 @app.route("/ask_question", methods=["POST"])
 def ask_question():
-    if "user_id" not in session:
-        return redirect("/login")
-
     data = request.json
     question = data.get("question")
-    user_id = session['user_id']
-    answer = get_answer(question, user_id)
+    token = data.get("token")
+    print(token)
+    answer = get_answer(question, token)
+    data = jsonify({"answer": answer})
     if not question:
-        return jsonify({"error": "No question provided"}), 400
-    return jsonify({"answer": answer})
+        data = jsonify({"error": "No question provided"}), 400
+    response = make_response(data)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "POST, GET, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    return response
+    
 
     
 if __name__ == "__main__":

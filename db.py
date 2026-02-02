@@ -1,6 +1,8 @@
 import psycopg2
 import traceback
 import json
+import hashlib
+import time
 
 def get_conn():
     with open("resources/config.json", 'r') as f:
@@ -36,9 +38,11 @@ def create_user(username: str, password: str, domain: str, text: str):
                 )
                 user_id = cur.fetchone()[0]
 
+                print(user_id)
+
                 cur.execute(
-                    "INSERT INTO data (user_id, domain, descr) VALUES (%s, %s, %s);",
-                    (user_id, domain, text)
+                    "INSERT INTO data (user_id, domain, descr, token) VALUES (%s, %s, %s, %s);",
+                    (user_id, domain, text, str(hashlib.sha256((str(time.time()) + str(user_id)).encode()).hexdigest())[:32])
                 )
 
             return user_id
@@ -47,14 +51,15 @@ def create_user(username: str, password: str, domain: str, text: str):
         traceback.print_exc()
         return None
 
-def get_text(user_id):
+def get_text(token):
     try:
         with get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "select descr from data where user_id=%s", 
-                    (user_id,)
+                    "select descr from data where token=%s", 
+                    (token,)
                 )
+                print(cur.query)
                 text = cur.fetchone()[0]
                 print(text)
                 return text

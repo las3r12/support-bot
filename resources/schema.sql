@@ -8,5 +8,6 @@ CREATE TABLE IF NOT EXISTS data (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     domain TEXT,
-    descr TEXT
+    descr TEXT,
+    token TEXT
 );
