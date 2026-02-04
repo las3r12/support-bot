@@ -66,6 +66,38 @@ def get_text(token):
     except Exception as e:
         print('Error: ', e)
         return None
+    
+def get_text_by_id(id):
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "select descr from data where user_id=%s", 
+                    (id,)
+                )
+                print(cur.query)
+                text = cur.fetchone()[0]
+                print(text)
+                return text
+    except Exception as e:
+        print('Error: ', e)
+        return None
+
+def get_token_by_id(id):
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "select token from data where user_id=%s", 
+                    (id,)
+                )
+                print(cur.query)
+                text = cur.fetchone()[0]
+                print(text)
+                return text
+    except Exception as e:
+        print('Error: ', e)
+        return None
         
 def check_password(username, password):
     try:

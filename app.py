@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, session, redirect, render_template, make_response
-from db import create_user, check_password, get_text, create_tables
+from db import *
 import json
 import os
 from api import get_answer
@@ -45,7 +45,7 @@ def login():
 def index():
     if "user_id" not in session:
         return redirect("/login")
-    text = get_text(session['user_id'])
+    text = get_token_by_id(session['user_id'])
     return render_template('index.html', text=text)
 
 @app.route("/ask", methods=["GET"])

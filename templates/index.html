@@ -106,22 +106,10 @@
 
 <body>
   <div class="card">
-    <h1>Enter one value</h1>
-
-    <form method="POST">
-      <input
-        type="text"
-        name="field"
-        placeholder="Type something..."
-        required
-        autofocus
-      >
-      <button type="submit">Submit</button>
-    </form>
-
     {% if text %}
       <div class="result">
-        {{ text }}
+        &lt;script src="http://localhost:5000/static/widget.js"&gt;&lt;/script&gt;
+        &lt;bot-widget token="{{ text }}"&gt;&lt;/bot-widget&gt;
       </div>
     {% endif %}
   </div>
