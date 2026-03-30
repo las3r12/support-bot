@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Knowledge Sources</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="app-layout">
+  {% include 'header.html' %}
+
+  <div class="main-content">
+
+    <div class="page-tabs-wrapper">
+      <div class="page-tabs">
+        <button class="page-tab active" onclick="switchPageTab(0, this)">Knowledge Sources</button>
+        <button class="page-tab" onclick="switchPageTab(1, this)">Widget Settings</button>
+      </div>
+
+      <div class="page-panel active" id="page-panel-0">
+
+        {% if sources and sources|length > 0 %}
+        <div class="embed-section">
+          <button class="btn-copy" onclick="copySnippet(this)">Copy</button>
+          <div class="result" id="embed-snippet">
+&lt;script src="http://localhost:5000/static/widget.js"&gt;&lt;/script&gt;<br>
+&lt;bot-widget token="{{ token }}"&gt;&lt;/bot-widget&gt;
+          </div>
+        </div>
+        {% endif %}
+
+        <div class="vertical-tabs-layout">
+      <div class="vtabs">
+        {% for name, text, src_token in sources %}
+        <button
+          class="tab-btn {% if loop.first %}active{% endif %}"
+          onclick="switchTab({{ loop.index0 }})"
+          id="tab-btn-{{ loop.index0 }}"
+        >{{ name }}</button>
+        {% endfor %}
+        <button class="btn-add-source {% if not sources %}active{% endif %}" id="btn-add-source" onclick="openAddPanel()">+ Add a New Source</button>
+      </div>
+
+      <div class="tab-panels">
+        {% for name, text, src_token in sources %}
+        <div class="tab-panel {% if loop.first %}active{% endif %}" id="tab-panel-{{ loop.index0 }}">
+
+          <div class="divider">Knowledge</div>
+
+          <div class="knowledge-section">
+            <div class="section-header">
+              <span class="section-title">
+                <span class="status-dot"></span>
+                Current Knowledge
+              </span>
+              <div class="section-actions">
+                <button class="edit-toggle" onclick="startEdit({{ loop.index0 }})">✏ Edit</button>
+                <button class="btn-delete" onclick="deleteSource('{{ src_token }}')">✕ Delete</button>
+              </div>
+            </div>
+
+            <div
+              class="knowledge-display {% if not text %}empty{% endif %}"
+              id="display-{{ loop.index0 }}"
+            >{{ text if text else 'No knowledge data available.' }}</div>
+
+            <div class="edit-panel" id="edit-panel-{{ loop.index0 }}">
+              <textarea
+                id="editor-{{ loop.index0 }}"
+                rows="5"
+                placeholder="Enter knowledge content…"
+              ></textarea>
+              <div class="edit-actions">
+                <button class="btn-cancel" onclick="cancelEdit({{ loop.index0 }})">Cancel</button>
+                <button class="btn-save" id="save-btn-{{ loop.index0 }}" onclick="saveKnowledge({{ loop.index0 }}, '{{ src_token }}')">Save changes</button>
+              </div>
+            </div>
+
+            <div class="toast" id="toast-{{ loop.index0 }}"></div>
+          </div>
+
+        </div>
+        {% endfor %}
+
+        <div class="tab-panel {% if not sources %}active{% endif %}" id="panel-add">
+          <div class="divider">New Source</div>
+          <form class="add-source-form" method="POST" action="/edit/{{ token }}/add">
+            <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+            <input
+              class="add-input"
+              type="text"
+              name="name"
+              id="newSourceName"
+              placeholder="Source name"
+              autocomplete="off"
+            />
+            <div class="parse-section">
+              <label class="section-label">Parse Page Text</label>
+              <div class="parse-row">
+                <input
+                  class="add-input"
+                  type="url"
+                  id="parseUrl"
+                  placeholder="https://example.com/page"
+                  autocomplete="off"
+                  style="flex:1"
+                />
+                <input
+                  class="add-input"
+                  type="number"
+                  id="parseDepth"
+                  min="0"
+                  max="2"
+                  value="0"
+                  title="Crawl depth (0 = single page, max 2)"
+                  style="width:70px"
+                />
+                <button class="btn-parse" id="btn-parse" type="button" onclick="parsePage()">Parse</button>
+              </div>
+            </div>
+            <textarea
+              class="add-textarea"
+              name="text"
+              id="newSourceText"
+              rows="5"
+              placeholder="Knowledge text…"
+            ></textarea>
+            <div class="edit-actions">
+              <button class="btn-save" type="submit">+ Add Source</button>
+            </div>
+          </form>
+          <div class="toast" id="toast-add"></div>
+        </div>
+      </div>
+
+      </div>
+      </div>
+
+      <div class="page-panel" id="page-panel-1">
+        <div class="vertical-tabs-layout">
+          <div class="vtabs">
+            <button class="tab-btn active" onclick="switchWidgetTab(0, this)">Fallback Message</button>
+          </div>
+
+          <div class="tab-panels">
+            <div class="tab-panel active" id="widget-panel-0">
+              <div class="divider">Fallback Message</div>
+
+              <div class="knowledge-section">
+                <div class="section-header">
+                  <span class="section-title">
+                    <span class="status-dot"></span>
+                    Current Fallback Message
+                  </span>
+                  <button class="edit-toggle" onclick="startWidgetEdit()">✏ Edit</button>
+                </div>
+
+                <div class="knowledge-display" id="widget-fallback-display">
+                  {{ fallback_msg }}
+                </div>
+
+                <div class="edit-panel" id="widget-fallback-edit-panel">
+                  <textarea
+                    id="widget-fallback-editor"
+                    rows="5"
+                    placeholder="Enter fallback message…"
+                  ></textarea>
+                  <div class="edit-actions">
+                    <button class="btn-cancel" onclick="cancelWidgetEdit()">Cancel</button>
+                    <button class="btn-save" id="widget-fallback-save-btn" onclick="updateFallbackMessage()">Save changes</button>
+                  </div>
+                </div>
+
+                <div class="toast" id="widget-fallback-toast"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    function switchPageTab(idx, btn) {
+      document.querySelectorAll('.page-tab').forEach((b, i) => b.classList.toggle('active', i === idx));
+      document.querySelectorAll('.page-panel').forEach((p, i) => p.classList.toggle('active', i === idx));
+    }
+
+    function copySnippet(btn) {
+      const text = `<script src="http://localhost:5000/static/widget.js"><\/script>\n<bot-widget token="{{ token }}"></bot-widget>`;
+      navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = '✓ Copied';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+      });
+    }
+
+    function switchTab(idx) {
+      document.querySelectorAll('.tab-btn').forEach((b, i) =>
+        b.classList.toggle('active', i === idx));
+      document.getElementById('btn-add-source').classList.remove('active');
+      document.querySelectorAll('.tab-panel').forEach((p, i) =>
+        p.classList.toggle('active', i === idx));
+      document.getElementById('panel-add').classList.remove('active');
+    }
+
+    function openAddPanel() {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('btn-add-source').classList.add('active');
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      document.getElementById('panel-add').classList.add('active');
+    }
+
+    function startEdit(idx) {
+      const display   = document.getElementById('display-'    + idx);
+      const editPanel = document.getElementById('edit-panel-' + idx);
+      const editor    = document.getElementById('editor-'     + idx);
+      const toggle    = document.querySelector(`#tab-panel-${idx} .edit-toggle`);
+
+      editor.value = display.classList.contains('empty') ? '' : display.textContent.trim();
+      display.classList.add('hidden');
+      editPanel.classList.add('visible');
+      toggle.style.display = 'none';
+      editor.focus();
+    }
+
+    function cancelEdit(idx) {
+      const display   = document.getElementById('display-'    + idx);
+      const editPanel = document.getElementById('edit-panel-' + idx);
+      const toggle    = document.querySelector(`#tab-panel-${idx} .edit-toggle`);
+
+      editPanel.classList.remove('visible');
+      display.classList.remove('hidden');
+      toggle.style.display = '';
+      hideToast(idx);
+    }
+
+    async function saveKnowledge(idx, srcToken) {
+      const editor  = document.getElementById('editor-'   + idx);
+      const saveBtn = document.getElementById('save-btn-' + idx);
+      const newText = editor.value.trim();
+
+      saveBtn.disabled    = true;
+      saveBtn.textContent = 'Saving…';
+
+      try {
+        const res = await fetch('/api/update/' + srcToken, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token' : '{{ session["csrf_token"] }}' },
+          body:    JSON.stringify({ data: newText })
+        });
+
+        if (!res.ok) throw new Error(`Server error: ${res.status}`);
+
+        const display = document.getElementById('display-' + idx);
+        if (newText) {
+          display.textContent = newText;
+          display.classList.remove('empty');
+        } else {
+          display.textContent = 'No knowledge data available.';
+          display.classList.add('empty');
+        }
+
+        cancelEdit(idx);
+        showToast(idx, 'success', '✓ Knowledge updated successfully.');
+      } catch (err) {
+        showToast(idx, 'error', '✗ Failed to save: ' + err.message);
+      } finally {
+        saveBtn.disabled    = false;
+        saveBtn.textContent = 'Save changes';
+      }
+    }
+
+    function showToast(idx, type, msg) {
+      const toast = document.getElementById('toast-' + idx);
+      toast.className = `toast ${type} visible`;
+      toast.textContent = msg;
+      setTimeout(() => hideToast(idx), 4000);
+    }
+
+    function hideToast(idx) {
+      const toast = document.getElementById('toast-' + idx);
+      if (toast) toast.className = 'toast';
+    }
+
+    function switchWidgetTab(idx, btn) {
+      document.querySelectorAll('#page-panel-1 .tab-btn').forEach((b, i) => b.classList.toggle('active', i === idx));
+      document.querySelectorAll('#page-panel-1 .tab-panel').forEach((p, i) => p.classList.toggle('active', i === idx));
+    }
+
+    function startWidgetEdit() {
+      const display   = document.getElementById('widget-fallback-display');
+      const editPanel = document.getElementById('widget-fallback-edit-panel');
+      const editor    = document.getElementById('widget-fallback-editor');
+      const toggle    = document.querySelector('#widget-panel-0 .edit-toggle');
+
+      editor.value = display.classList.contains('empty') ? '' : display.textContent.trim();
+      display.classList.add('hidden');
+      editPanel.classList.add('visible');
+      toggle.style.display = 'none';
+      editor.focus();
+    }
+
+    function cancelWidgetEdit() {
+      const display   = document.getElementById('widget-fallback-display');
+      const editPanel = document.getElementById('widget-fallback-edit-panel');
+      const toggle    = document.querySelector('#widget-panel-0 .edit-toggle');
+
+      editPanel.classList.remove('visible');
+      display.classList.remove('hidden');
+      toggle.style.display = '';
+      const toast = document.getElementById('widget-fallback-toast');
+      if (toast) toast.className = 'toast';
+    }
+
+    async function updateFallbackMessage() {
+      const res = await fetch('/edit/fallback/update/' + "{{ token }}", {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token' : '{{ session["csrf_token"] }}'},
+          body:    JSON.stringify({"data" : document.getElementById("widget-fallback-editor").value })
+        });
+        if (!res.ok) throw new Error(`Server error: ${res.status}`);
+        const data = await res.json();
+        document.getElementById('widget-fallback-editor').value = data.data;
+    }
+
+    async function deleteSource(srcToken) {
+      if (!confirm('Delete this knowledge source?')) return;
+      const res = await fetch('/edit/delete/' + srcToken, {
+        method: 'POST',
+        headers: { 'X-CSRF-Token': '{{ session["csrf_token"] }}' }
+      });
+      if (res.ok) {
+        location.reload();
+      } else {
+        alert('Failed to delete source.');
+      }
+    }
+
+    async function parsePage() {
+      const urlInput = document.getElementById('parseUrl');
+      const btn      = document.getElementById('btn-parse');
+      const url      = urlInput.value.trim();
+      const depth    = Math.min(2, Math.max(0, parseInt(document.getElementById('parseDepth').value) || 0));
+      if (!url) return;
+
+      btn.disabled    = true;
+      btn.textContent = 'Parsing…';
+
+      try {
+        const res = await fetch('/api/scarp', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token' : '{{ session["csrf_token"] }}'},
+          body:    JSON.stringify({ url, depth })
+        });
+        if (!res.ok) throw new Error(`Server error: ${res.status}`);
+        const data = await res.json();
+        document.getElementById('newSourceText').value = data.text;
+      } catch (err) {
+        const t = document.getElementById('toast-add');
+        t.className = 'toast error visible';
+        t.textContent = '✗ Failed to parse: ' + err.message;
+        setTimeout(() => { t.className = 'toast'; }, 4000);
+      } finally {
+        btn.disabled    = false;
+        btn.textContent = 'Parse';
+      }
+    }
+  </script>
+</body>
+</html>
