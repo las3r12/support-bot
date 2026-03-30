@@ -18,4 +18,19 @@ CREATE TABLE IF NOT EXISTS texts (
     name TEXT UNIQUE,
     descr TEXT,
     token TEXT
-)
+);
+
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE IF NOT EXISTS text_chunks (
+    id          SERIAL PRIMARY KEY,
+    text_id     INTEGER NOT NULL REFERENCES texts(id) ON DELETE CASCADE,
+    chunk_index INTEGER NOT NULL,
+    chunk_text  TEXT NOT NULL,
+    embedding   vector(384),
+    UNIQUE (text_id, chunk_index)
+);
+
+CREATE INDEX IF NOT EXISTS text_chunks_embedding_idx
+    ON text_chunks USING ivfflat (embedding vector_cosine_ops)
+    WITH (lists = 100);

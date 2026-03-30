@@ -50,7 +50,15 @@ def get_answer(question, key, db):
         text = f.read()
     with open('resources/config.json', 'r') as f:
         token = json.load(f)['llm_key']
-    text += "=== DATA START ===\n" + db.get_all_text(key) + "\n=== DATA END ===\n"
+
+    chunks = db.retrieve(key, question)
+    print(chunks)
+    if not chunks:
+            return {"status": "fallback", "response": None}
+    
+    context = "\n\n".join(chunks)
+    print(context)
+    text += "=== DATA START ===\n" + context + "\n=== DATA END ===\n"
     text += "=== QUESTION START ===\n" + question + "\n=== QUESTION END ==="
 
     data = json.dumps({

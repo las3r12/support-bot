@@ -1,12 +1,12 @@
 import json
 import hashlib
 import time
-import traceback
+import threading
 from contextlib import contextmanager
 from psycopg2.pool import ThreadedConnectionPool
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
-
+from sentence_transformers import SentenceTransformer
 
 
 class Database:
@@ -24,6 +24,8 @@ class Database:
             memory_cost=65536,
             parallelism=2,
         )
+        self._model_lock = threading.Lock()
+        self.encoder = SentenceTransformer("all-MiniLM-L6-v2")
 
     @contextmanager
     def _conn(self):
@@ -36,6 +38,54 @@ class Database:
             raise
         finally:
             self._pool.putconn(conn)
+
+    def embed(self, texts):
+        return self.encoder.encode(texts, normalize_embeddings=True).tolist()
+    
+    def chunk_text(self, text: str, size: int = 500, overlap: int = 50):
+        chunks = []
+        start = 0
+        while start < len(text):
+            end = min(start + size, len(text))
+            if end < len(text):
+                last_space = text.rfind(" ", start, end)
+                if last_space > start:
+                    end = last_space
+            chunks.append(text[start:end].strip())
+            start += size - overlap
+        return chunks
+    
+    def _sync_chunks(self, cur, text_id: int, content: str):
+        chunks = self.chunk_text(content)
+        vectors = self.embed(chunks)
+
+        cur.execute("DELETE FROM text_chunks WHERE text_id = %s", (text_id,))
+
+        for i, (chunk, vector) in enumerate(zip(chunks, vectors)):
+            cur.execute("""
+                INSERT INTO text_chunks (text_id, chunk_index, chunk_text, embedding)
+                VALUES (%s, %s, %s, %s)
+            """, (text_id, i, chunk, vector))
+
+    def retrieve(self, domain_token: str, question: str, top_k: int = 5):
+        q_vector = self.embed([question])[0]
+        try:
+            with self._conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT text_chunks.chunk_text
+                        FROM text_chunks
+                        JOIN texts ON texts.id = text_chunks.text_id
+                        JOIN data ON data.id = texts.data_id
+                        WHERE data.token = %s
+                        AND text_chunks.embedding <=> %s::vector < 0.8
+                        ORDER BY text_chunks.embedding <=> %s::vector
+                        LIMIT %s
+                    """, (domain_token, q_vector,q_vector, top_k))
+                    return [row[0] for row in cur.fetchall()]
+        except Exception as e:
+            print(e)
+            return []
 
     def create_tables(self):
         with open("resources/schema.sql") as f:
@@ -81,9 +131,11 @@ class Database:
                 with conn.cursor() as cur:
                     cur.execute(
                         "INSERT INTO texts (data_id, name, descr, token) VALUES "
-                        "((SELECT id FROM data WHERE token=%s), %s, %s, %s)",
+                        "((SELECT id FROM data WHERE token=%s), %s, %s, %s) RETURNING id",
                         (data_token, name, text, token),
                     )
+                    text_id = cur.fetchone()[0]
+                    self._sync_chunks(cur, text_id, text)
         except Exception as e:
             print(e)
             return None
@@ -93,9 +145,12 @@ class Database:
             with self._conn() as conn:
                 with conn.cursor() as cur:
                     cur.execute(
-                        "UPDATE texts SET descr=%s WHERE token=%s",
+                        "UPDATE texts SET descr=%s WHERE token=%s RETURNING id",
                         (new_text, source_token),
                     )
+                    row = cur.fetchone()
+                    if row:
+                        self._sync_chunks(cur, row[0], new_text)
         except Exception as e:
             print(e)
             return None
