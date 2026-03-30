@@ -7,7 +7,15 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS data (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    domain TEXT,
-    descr TEXT,
+    domain TEXT UNIQUE,
+    msg TEXT,
     token TEXT
 );
+
+CREATE TABLE IF NOT EXISTS texts (
+    id SERIAL PRIMARY KEY,
+    data_id INTEGER NOT NULL REFERENCES data(id) ON DELETE CASCADE,
+    name TEXT UNIQUE,
+    descr TEXT,
+    token TEXT
+)
