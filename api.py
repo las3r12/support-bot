@@ -43,35 +43,47 @@ def decode_chunked(data: bytes) -> str:
     return body.decode()
 
 
-def get_answer(question, key, db):
+def get_answer(question, history, key, db):
     text = ""
     token = ""
     with open("resources/prompt.txt", 'r') as f:
-        text = f.read()
+        system_prompt = f.read()
     with open('resources/config.json', 'r') as f:
         token = json.load(f)['llm_key']
 
     chunks = db.retrieve(key, question)
-    print(chunks)
     if not chunks:
-            return {"status": "fallback", "response": None}
-    
-    context = "\n\n".join(chunks)
-    print(context)
-    text += "=== DATA START ===\n" + context + "\n=== DATA END ===\n"
-    text += "=== QUESTION START ===\n" + question + "\n=== QUESTION END ==="
+            context = db.get_all_text(key)
+    else:
+        context = "\n\n".join(chunks)
+        print(chunks)
 
+    text += system_prompt
+    text += "=== DATA START ===\n" + context + "\n=== DATA END ===\n"
+    text += "=== MESSAGE HISTORY START ===\n" + history + "\n=== MESSAGE HISTORY END ==="
+    text += "=== QUESTION START ===\n" + question + "\n=== QUESTION END ==="
+    resp = get_llm_anser(text, token)
+    if resp['status'] == 'fallback' and chunks:
+        text = system_prompt
+        text += "=== DATA START ===\n" + db.get_all_text(key) + "\n=== DATA END ===\n"
+        text += "=== MESSAGE HISTORY START ===\n" + history + "\n=== MESSAGE HISTORY END ==="
+        text += "=== QUESTION START ===\n" + question + "\n=== QUESTION END ==="
+    resp = get_llm_anser(text, token)
+    return resp
+
+def get_llm_anser(prompt, token):
     data = json.dumps({
         "model": "nvidia/nemotron-3-nano-30b-a3b:free",
         "messages": [
         {
             "role": "user",
-            "content": text
+            "content": prompt
         }
         ]
     })
     response = https_post(data=data, hostname="openrouter.ai", path="/api/v1/chat/completions", headers={
         "Authorization": f"Bearer {token}"
     })
-    return json.loads(json.loads(response)['choices'][0]['message']['content'])
+    resp = json.loads(json.loads(response)['choices'][0]['message']['content'])
+    return resp
 
