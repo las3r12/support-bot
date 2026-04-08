@@ -2,6 +2,7 @@ class BotWidget extends HTMLElement {
   constructor() {
     super();
     const shadow = this.attachShadow({ mode: 'open' });
+    this.history = [];
     shadow.innerHTML = `
       <div class="chat-window">
 
@@ -362,12 +363,14 @@ class BotWidget extends HTMLElement {
     `;
   }
 
+  
   connectedCallback() {
     const shadow      = this.shadowRoot;
     const sendBtn     = shadow.getElementById('sendBtn');
     const input       = shadow.getElementById('chatInput');
     const messages    = shadow.getElementById('messages');
     const typingEl    = shadow.getElementById('typingIndicator');
+
 
     const hideBtn = shadow.getElementById('hideBtn');
     hideBtn.addEventListener('click', () => {
@@ -419,8 +422,14 @@ class BotWidget extends HTMLElement {
     msg.appendChild(bubble);
     msg.appendChild(time);
 
+    this.history.push({ user: role, text: text });
     messages.insertBefore(msg, typingEl);
     messages.scrollTop = messages.scrollHeight;
+  }
+
+  getLastHist(){
+    if (this.history.length <= 10) return this.history;
+    return this.history.slice(-10);
   }
 
   async sendMessage(input, messages, typingEl, sendBtn) {
@@ -441,7 +450,8 @@ class BotWidget extends HTMLElement {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           question,
-          token: this.getAttribute('token')
+          token: this.getAttribute('token'),
+          history: this.getLastHist()
         })
       });
 
