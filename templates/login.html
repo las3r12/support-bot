@@ -12,7 +12,7 @@
     <h1>Welcome back</h1>
     <p>Sign in to your account</p>
 
-    <form method="POST">
+    <form id="login-form">
       <input
         type="text"
         name="username"
@@ -28,8 +28,29 @@
         required
       >
 
+      <p id="login-error" style="color: red; font-size: 0.9rem; margin: 0; display: none;"></p>
+
       <button type="submit">Login</button>
     </form>
+
+    <script>
+      document.getElementById('login-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const res = await fetch('/login', {
+          method: 'POST',
+          body: new FormData(form),
+        });
+        if (res.ok) {
+          window.location.href = '/';
+        } else {
+          const data = await res.json();
+          const err = document.getElementById('login-error');
+          err.textContent = data.error;
+          err.style.display = 'block';
+        }
+      });
+    </script>
 
     <p style="margin: 16px 0 0; font-size: 0.9rem;">Don't have an account? <a href="/register" style="color: var(--accent); font-weight: 600; text-decoration: none;">Register</a></p>
   </div>

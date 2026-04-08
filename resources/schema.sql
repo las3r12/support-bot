@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS data (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     domain TEXT UNIQUE,
-    msg TEXT,
+    msg TEXT DEFAULT 'Unfortunately I can not answer your question.',
     token TEXT
 );
 

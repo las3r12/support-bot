@@ -7,7 +7,8 @@ from psycopg2.pool import ThreadedConnectionPool
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 from sentence_transformers import SentenceTransformer
-
+import os
+MODEL_PATH = "./models/all-MiniLM-L6-v2"
 
 class Database:
     def __init__(self, config: dict, minconn: int = 2, maxconn: int = 10):
@@ -25,7 +26,8 @@ class Database:
             parallelism=2,
         )
         self._model_lock = threading.Lock()
-        self.encoder = SentenceTransformer("all-MiniLM-L6-v2")
+        self.encoder = SentenceTransformer(MODEL_PATH)
+
 
     @contextmanager
     def _conn(self):
@@ -78,7 +80,7 @@ class Database:
                         JOIN texts ON texts.id = text_chunks.text_id
                         JOIN data ON data.id = texts.data_id
                         WHERE data.token = %s
-                        AND text_chunks.embedding <=> %s::vector < 0.8
+                        AND text_chunks.embedding <=> %s::vector < 0.4
                         ORDER BY text_chunks.embedding <=> %s::vector
                         LIMIT %s
                     """, (domain_token, q_vector,q_vector, top_k))
@@ -183,6 +185,7 @@ class Database:
         except Exception as e:
             print(e)
             return None
+        
 
     def get_data(self, user_id: int):
         try:
@@ -293,5 +296,18 @@ class Database:
         except Exception as e:
             print(e)
             return "Unfortunatelly, I can't answer your question right now."
+        
+    def user_exists(self, username):
+        try:
+            with self._conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT id FROM users WHERE username=%s",
+                        (username,),
+                    )
+                    return cur.fetchone() is not None
+        except Exception as e:
+            print(e)
+            return None
         
         

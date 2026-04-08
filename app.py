@@ -16,6 +16,7 @@ app = Flask(__name__)
 #app.secret_key = os.urandom(24)
 app.secret_key = 'g'
 
+
 @app.before_request
 def check_csrf():
     if 'user_id' not in session:
@@ -33,9 +34,13 @@ def register():
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "").strip()
         if not username or not password:
-            return "Missing username or password", 400
+            return jsonify({"error" : "Missing username or password"}), 400
+        if db.user_exists(username):
+            return jsonify({"error" : "Username already taken"}), 400
+        if len(password) < 8:
+            return jsonify({"error": "Password must be at least 8 characters"}), 400
         db.create_user(username, password)
-        return redirect('/login')
+        return {}, 200
     else:
         return render_template("register.html")
 
@@ -49,7 +54,7 @@ def login():
         if id:
             session["user_id"] = id
             session['csrf_token'] = secrets.token_hex(32)
-            return redirect("/")
+            return {}, 200
         return {"error" : "Invalid Credentials"}, 401
     return render_template("login.html")
 
@@ -70,8 +75,10 @@ def ask():
 @app.route("/create", methods=["POST"])
 def create():
     if "user_id" not in session:
-        return {"status" : "Invalid Credentials"}, 403
+        return {"error" : "Invalid Credentials"}, 403
     domain = request.form["domain"]
+    if not domain or domain == "":
+        return {"error" : "Empty Domain"}, 400
     db.add_website(domain, session['user_id'])
     return redirect("/")
 
@@ -83,6 +90,10 @@ def add_data_source(token):
         return {"status" : "Invalid Credentials"}, 403
     name = request.form["name"]
     text = request.form["text"]
+    if not name or name == "":
+        return {"error" : "Source name can't be empty"}, 400
+    if not text or text == "":
+        return {"error" : "Source text can't be empty"}, 400
     db.add_source(token, name, text)
     return redirect("/edit/"+token)
 
@@ -111,7 +122,8 @@ def ask_question():
         data = jsonify({"error": "No question provided"}), 400
     token = data.get("token")
     try:
-        answer = get_answer(question, token, db)
+        answer = get_answer(question, str(data.get('history')), token, db)
+        print(answer)
     except Exception as e:
         print(e)
     if (answer['status'] == 'fallback'):
@@ -142,6 +154,8 @@ def update_text(token):
     if not db.check_token(session['user_id'], token):
         return {"error" : "Invalid Credentials"}, 403
     new_text = json_data.get('data')
+    if not new_text or new_text == "":
+        return {"error" : "Source text can't be empty"}, 400
     db.update_text(token, new_text)
     return {}, 200
 
@@ -162,6 +176,8 @@ def update_fallback(token):
     if not db.check_data_token(session['user_id'], token):
         return {"error" : "Invalid Credentials"}, 403
     new_text = json_data.get('data')
+    if new_text == "":
+        return {"error" : "Can't set an empty message"}, 400
     db.update_fallback(token, new_text)
     return {}, 200
 

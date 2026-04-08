@@ -35,7 +35,7 @@
 
     <div class="divider">New Domain</div>
 
-    <form class="create-form" method="POST" action="/create">
+    <form id="create-form" class="create-form" method="POST" action="/create">
       <input
         class="create-input"
         type="text"
@@ -46,6 +46,24 @@
       <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
       <button class="btn-create" type="submit">+ Create</button>
     </form>
-    
+    <p id="create-error" style="color: red; font-size: 0.9rem; margin: 0; display: none;"></p>
+    <script>
+      document.getElementById('create-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const res = await fetch('/create', {
+          method: 'POST',
+          body: new FormData(form),
+        });
+        if (res.ok) {
+          window.location.href = '/';
+        } else {
+          const data = await res.json();
+          const err = document.getElementById('create-error');
+          err.textContent = data.error;
+          err.style.display = 'block';
+        }
+      });
+    </script>
 </body>
 </html>

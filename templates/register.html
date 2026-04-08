@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <title>User Registration</title>
@@ -12,30 +13,40 @@
     <h1>Create account</h1>
     <p>Register to get started</p>
 
-    <form method="POST" action="/register">
+    <form id="register-form" method="POST" action="/register">
       <label>
         Email
-        <input
-          type="email"
-          name="username"
-          placeholder="you@example.com"
-          required
-        />
+        <input type="email" name="username" placeholder="you@example.com" required />
       </label>
 
       <label>
         Password
-        <input
-          type="password"
-          name="password"
-          placeholder="••••••••"
-          required
-        />
+        <input type="password" name="password" placeholder="••••••••" required />
       </label>
       <button type="submit">Register</button>
     </form>
-
-    <p style="margin: 16px 0 0; font-size: 0.9rem;">Already have an account? <a href="/login" style="color: var(--accent); font-weight: 600; text-decoration: none;">Log In</a></p>
+    <script>
+      document.getElementById('register-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const res = await fetch('/register', {
+          method: 'POST',
+          body: new FormData(form),
+        });
+        if (res.ok) {
+          window.location.href = '/login';
+        } else {
+          const data = await res.json();
+          const err = document.getElementById('register-error');
+          err.textContent = data.error;
+          err.style.display = 'block';
+        }
+      });
+    </script>
+  <p id="register-error" style="color: red; font-size: 0.9rem; margin: 0; display: none;"></p>
+    <p style="margin: 16px 0 0; font-size: 0.9rem;">Already have an account? <a href="/login"
+        style="color: var(--accent); font-weight: 600; text-decoration: none;">Log In</a></p>
   </div>
 </body>
+
 </html>
