@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Account</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    .account-sections {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      margin-top: 1.5rem;
+      max-width: 480px;
+    }
+    .account-card {
+      background: #fff;
+      border: 1px solid var(--border, #e5e7eb);
+      border-radius: 10px;
+      padding: 1.5rem;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    .account-card h2 {
+      margin: 0 0 1rem;
+      font-size: 1rem;
+      color: #111827;
+    }
+    .credits-badge {
+      display: inline-block;
+      font-size: 2rem;
+      font-weight: 700;
+      color: #22c55e;
+    }
+    .credits-label {
+      font-size: 0.85rem;
+      color: #6b7280;
+      margin-top: 0.25rem;
+    }
+    .pw-form {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .pw-form input {
+      padding: 0.5rem 0.75rem;
+      border: 1px solid var(--border, #e5e7eb);
+      border-radius: 6px;
+      font-size: 0.95rem;
+      font-family: inherit;
+    }
+    .pw-form input:focus {
+      outline: none;
+      border-color: #22c55e;
+      box-shadow: 0 0 0 2px rgba(34,197,94,0.15);
+    }
+    .pw-form button {
+      align-self: flex-start;
+      padding: 0.45rem 1.1rem;
+      background: #22c55e;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .pw-form button:hover { background: #16a34a; }
+    .form-msg {
+      font-size: 0.85rem;
+      min-height: 1.2em;
+    }
+    .form-msg.success { color: #16a34a; }
+    .form-msg.error   { color: #dc2626; }
+  </style>
+</head>
+<body class="app-layout">
+  {% include 'header.html' %}
+
+  <div class="main-content centered">
+    <h1>Account</h1>
+
+    <div class="account-sections">
+
+      <div class="account-card">
+        <h2>Credits</h2>
+        <div class="credits-badge">{{ credits }}</div>
+        <div class="credits-label">remaining credits</div>
+      </div>
+
+      <div class="account-card">
+        <h2>Change Password</h2>
+        <div class="pw-form">
+          <input type="password" id="old-pw" placeholder="Current password">
+          <input type="password" id="new-pw" placeholder="New password (min 8 chars)">
+          <input type="password" id="confirm-pw" placeholder="Confirm new password">
+          <div class="form-msg" id="pw-msg"></div>
+          <button onclick="changePassword()">Update Password</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    const CSRF_TOKEN = "{{ session['csrf_token'] }}";
+
+    async function changePassword() {
+      const oldPw = document.getElementById('old-pw').value;
+      const newPw = document.getElementById('new-pw').value;
+      const confirmPw = document.getElementById('confirm-pw').value;
+      const msg = document.getElementById('pw-msg');
+
+      if (newPw !== confirmPw) {
+        msg.textContent = 'New passwords do not match.';
+        msg.className = 'form-msg error';
+        return;
+      }
+
+      const res = await fetch('/account/password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': CSRF_TOKEN
+        },
+        body: JSON.stringify({ old_password: oldPw, new_password: newPw })
+      });
+
+      if (res.ok) {
+        msg.textContent = 'Password updated successfully.';
+        msg.className = 'form-msg success';
+        document.getElementById('old-pw').value = '';
+        document.getElementById('new-pw').value = '';
+        document.getElementById('confirm-pw').value = '';
+      } else {
+        const data = await res.json().catch(() => ({}));
+        msg.textContent = data.error || 'Something went wrong.';
+        msg.className = 'form-msg error';
+      }
+    }
+  </script>
+</body>
+</html>

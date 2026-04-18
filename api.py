@@ -5,7 +5,7 @@ import secrets
 
 
 class LLMClient:
-    def __init__(self, max_context_len: int, token: str, model: str = "nvidia/nemotron-3-nano-30b-a3b:free", ):
+    def __init__(self, token: str, max_context_len: int, model: str = "nvidia/nemotron-3-nano-30b-a3b:free", ):
         self.token = token
         self.model = model
         self._hostname = "openrouter.ai"
@@ -93,7 +93,7 @@ class LLMClient:
             data = data[size + 2:]
         return body.decode()
     
-    def _generate_nonce():
+    def _generate_nonce(self):
         chars = "abcdefghijklmnopqrstuvwxyz0123456789"
         return "".join(secrets.choice(chars) for _ in range(8))
     

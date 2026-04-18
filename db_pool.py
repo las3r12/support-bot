@@ -264,6 +264,27 @@ class Database:
             print(e)
             return None
         
+    def get_bot_name(self, domain_token: str):
+        try:
+            with self._conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT name FROM data WHERE token=%s", (domain_token,))
+                    row = cur.fetchone()
+                    return row[0] if row else 'Support Bot'
+        except Exception as e:
+            print(e)
+            return 'Support Bot'
+
+    def update_bot_name(self, domain_token: str, name: str):
+        try:
+            with self._conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("UPDATE data SET name=%s WHERE token=%s", (name, domain_token))
+            return True
+        except Exception as e:
+            print(e)
+            return False
+
     def get_fallback(self, domain_token):
         try:
             with self._conn() as conn:
@@ -277,6 +298,100 @@ class Database:
             print(e)
             return "Unfortunatelly, I can't answer your question right now."
         
+    def get_users(self):
+        try:
+            with self._conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT id, username, credits FROM users WHERE user_role = 'user' ORDER BY username"
+                    )
+                    return [{'id': r[0], 'username': r[1], 'credits': r[2]} for r in cur.fetchall()]
+        except Exception as e:
+            print(e)
+            return []
+
+    def set_credits(self, user_id: int, credits: int):
+        try:
+            with self._conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE users SET credits=%s WHERE id=%s AND user_role='user'",
+                        (credits, user_id),
+                    )
+            return True
+        except Exception as e:
+            print(e)
+            return False
+
+    def get_credits(self, domain_token: str):
+        try:
+            with self._conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT credits FROM users WHERE id = (SELECT user_id FROM data WHERE token=%s)",
+                        (domain_token,),
+                    )
+                    row = cur.fetchone()
+                    return row[0] if row else 0
+        except Exception as e:
+            print(e)
+            return 0
+
+    def deduct_credit(self, domain_token: str):
+        try:
+            with self._conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE users SET credits = credits - 1 "
+                        "WHERE id = (SELECT user_id FROM data WHERE token=%s) AND credits > 0",
+                        (domain_token,),
+                    )
+            return True
+        except Exception as e:
+            print(e)
+            return False
+
+    def get_credits_by_user(self, user_id: int):
+        try:
+            with self._conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT credits FROM users WHERE id=%s", (user_id,))
+                    row = cur.fetchone()
+                    return row[0] if row else 0
+        except Exception as e:
+            print(e)
+            return 0
+
+    def change_password(self, user_id: int, old_password: str, new_password: str):
+        try:
+            with self._conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT password FROM users WHERE id=%s", (user_id,))
+                    row = cur.fetchone()
+                    if not row or not self.ph.verify(row[0], old_password):
+                        return False
+                    cur.execute(
+                        "UPDATE users SET password=%s WHERE id=%s",
+                        (self.ph.hash(new_password), user_id),
+                    )
+            return True
+        except VerifyMismatchError:
+            return False
+        except Exception as e:
+            print(e)
+            return False
+
+    def get_role(self, user_id: int):
+        try:
+            with self._conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT user_role FROM users WHERE id=%s", (user_id,))
+                    row = cur.fetchone()
+                    return row[0] if row else None
+        except Exception as e:
+            print(e)
+            return None
+
     def user_exists(self, username):
         try:
             with self._conn() as conn:

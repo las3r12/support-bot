@@ -109,11 +109,35 @@
       <div class="page-panel" id="page-panel-1">
         <div class="vertical-tabs-layout">
           <div class="vtabs">
-            <button class="tab-btn active" onclick="switchWidgetTab(0, this)">Fallback Message</button>
+            <button class="tab-btn active" onclick="switchWidgetTab(0, this)">Bot Name</button>
+            <button class="tab-btn" onclick="switchWidgetTab(1, this)">Fallback Message</button>
           </div>
 
           <div class="tab-panels">
             <div class="tab-panel active" id="widget-panel-0">
+              <div class="divider">Bot Name</div>
+              <p class="fallback-info">This is the name displayed in the widget header.</p>
+              <div class="knowledge-section">
+                <div class="section-header">
+                  <span class="section-title">
+                    <span class="status-dot"></span>
+                    Current Bot Name
+                  </span>
+                  <button class="edit-toggle" onclick="startBotNameEdit()">✏ Edit</button>
+                </div>
+                <div class="knowledge-display" id="bot-name-display">{{ bot_name }}</div>
+                <div class="edit-panel" id="bot-name-edit-panel">
+                  <textarea id="bot-name-editor" rows="2" placeholder="Enter bot name…"></textarea>
+                  <div class="edit-actions">
+                    <button class="btn-cancel" onclick="cancelBotNameEdit()">Cancel</button>
+                    <button class="btn-save" onclick="updateBotName()">Save changes</button>
+                  </div>
+                  <p id="bot-name-error" style="color: red; font-size: 0.9rem; margin: 0; display: none;"></p>
+                </div>
+                <div class="toast" id="bot-name-toast"></div>
+              </div>
+            </div>
+            <div class="tab-panel" id="widget-panel-1">
               <div class="divider">Fallback Message</div>
               <p class="fallback-info">This is the message the bot sends when it doesn't know the answer. For instance,
                 you can write your email here so the customers will know how to contact you.</p>
@@ -142,6 +166,7 @@
 
                 <div class="toast" id="widget-fallback-toast"></div>
               </div>
+            </div>
             </div>
           </div>
         </div>
@@ -257,6 +282,44 @@
     function switchWidgetTab(idx, btn) {
       document.querySelectorAll('#page-panel-1 .tab-btn').forEach((b, i) => b.classList.toggle('active', i === idx));
       document.querySelectorAll('#page-panel-1 .tab-panel').forEach((p, i) => p.classList.toggle('active', i === idx));
+    }
+
+    function startBotNameEdit() {
+      const display = document.getElementById('bot-name-display');
+      const editPanel = document.getElementById('bot-name-edit-panel');
+      const editor = document.getElementById('bot-name-editor');
+      const toggle = document.querySelector('#widget-panel-0 .edit-toggle');
+      editor.value = display.textContent.trim();
+      display.classList.add('hidden');
+      editPanel.classList.add('visible');
+      toggle.style.display = 'none';
+      editor.focus();
+    }
+
+    function cancelBotNameEdit() {
+      const display = document.getElementById('bot-name-display');
+      const editPanel = document.getElementById('bot-name-edit-panel');
+      const toggle = document.querySelector('#widget-panel-0 .edit-toggle');
+      editPanel.classList.remove('visible');
+      display.classList.remove('hidden');
+      toggle.style.display = '';
+    }
+
+    async function updateBotName() {
+      const editor = document.getElementById('bot-name-editor');
+      const res = await fetch("/edit/{{ token }}/name/update", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': '{{ session["csrf_token"] }}' },
+        body: JSON.stringify({ data: editor.value.trim() })
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        const err = document.getElementById('bot-name-error');
+        err.textContent = data.error;
+        err.style.display = 'block';
+      } else {
+        location.href = location.href;
+      }
     }
 
     function startWidgetEdit() {

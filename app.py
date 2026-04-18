@@ -13,7 +13,7 @@ with open("resources/config.json") as f:
 
 db = Database(config)
 scarper = Scarper()
-llm = LLMClient(config['llm_key'])
+llm = LLMClient(config['llm_key'], config['max_context_len'])
 app = Flask(__name__)
 #app.secret_key = os.urandom(24)
 app.secret_key = 'g'
@@ -117,11 +117,16 @@ def ask_question():
     if not question:
         data = jsonify({"error": "No question provided"}), 400
     token = data.get("token")
+    if db.get_credits(token) <= 0:
+        resp = jsonify({"answer": config["no_credits_msg"]})
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        return resp
     try:
         answer = llm.get_answer(question, str(data.get('history')), token, db)
         print(answer)
     except Exception as e:
         print(e)
+    db.deduct_credit(token)
     if (answer['status'] == 'fallback'):
         answer = db.get_fallback(token)
     else:
@@ -139,7 +144,8 @@ def send_edit_page(token):
         return redirect("/")
     data = db.get_all_texts(token)
     fallback_msg = db.get_fallback(token)[0]
-    return render_template('edit.html', sources=data, token=token, fallback_msg=fallback_msg)
+    bot_name = db.get_bot_name(token)
+    return render_template('edit.html', sources=data, token=token, fallback_msg=fallback_msg, bot_name=bot_name)
 
 
 @app.route("/edit/update/<token>", methods=["POST"])
@@ -162,6 +168,25 @@ def delete_text(token):
     if not db.check_token(session['user_id'], token):
         return {"error" : "Invalid Credentials"}, 403
     db.remove_text(token)
+    return {}, 200
+
+@app.route("/bot_info/<token>", methods=["GET"])
+def bot_info(token):
+    name = db.get_bot_name(token)
+    response = make_response(jsonify({"bot_name": name}))
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    return response
+
+@app.route("/edit/<token>/name/update", methods=["POST"])
+def update_bot_name(token):
+    if "user_id" not in session:
+        return {"error": "Invalid Credentials"}, 403
+    if not db.check_data_token(session['user_id'], token):
+        return {"error": "Invalid Credentials"}, 403
+    name = request.json.get("data", "").strip()
+    if not name:
+        return {"error": "Bot name can't be empty"}, 400
+    db.update_bot_name(token, name)
     return {}, 200
 
 @app.route("/edit/<token>/fallback/update", methods=["POST"])
@@ -190,6 +215,48 @@ def scarp_page():
         return {"text" : ""}, 400
     return {"text" : text}, 200
 
+@app.route("/account", methods=["GET"])
+def account():
+    if "user_id" not in session:
+        return redirect("/login")
+    credits = db.get_credits_by_user(session["user_id"])
+    return render_template("account.html", credits=credits)
+
+@app.route("/account/password", methods=["POST"])
+def change_password():
+    if "user_id" not in session:
+        return {"error": "Invalid Credentials"}, 403
+    json_data = request.json
+    old_pw = json_data.get("old_password", "")
+    new_pw = json_data.get("new_password", "")
+    if len(new_pw) < 8:
+        return {"error": "Password must be at least 8 characters"}, 400
+    if not db.change_password(session["user_id"], old_pw, new_pw):
+        return {"error": "Current password is incorrect"}, 400
+    return {}, 200
+
+@app.route("/admin", methods=["GET"])
+def admin():
+    if "user_id" not in session:
+        return redirect("/login")
+    if db.get_role(session["user_id"]) != "admin":
+        abort(403)
+    users = db.get_users()
+    return render_template("admin.html", users=users)
+
+@app.route("/admin/credits/<int:user_id>", methods=["POST"])
+def update_credits(user_id):
+    if "user_id" not in session:
+        return {"error": "Invalid Credentials"}, 403
+    if db.get_role(session["user_id"]) != "admin":
+        abort(403)
+    json_data = request.json
+    credits = json_data.get("credits")
+    if credits is None or not isinstance(credits, int) or credits < 0:
+        return {"error": "Invalid credits value"}, 400
+    db.set_credits(user_id, credits)
+    return {}, 200
+
 @app.route("/logout")
 def logout():
     session.clear()
@@ -198,5 +265,3 @@ def logout():
 if __name__ == "__main__":
     db.create_tables()
     app.run(debug=True)
-
-עמוד

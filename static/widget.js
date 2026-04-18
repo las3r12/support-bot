@@ -1,3 +1,5 @@
+const BOT_API = 'http://localhost:5000';
+
 class BotWidget extends HTMLElement {
   constructor() {
     super();
@@ -371,6 +373,13 @@ class BotWidget extends HTMLElement {
     const messages    = shadow.getElementById('messages');
     const typingEl    = shadow.getElementById('typingIndicator');
 
+    fetch(`${BOT_API}/bot_info/${this.getAttribute('token')}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.bot_name) shadow.querySelector('.header-name').textContent = data.bot_name;
+      })
+      .catch(() => {});
+
 
     const hideBtn = shadow.getElementById('hideBtn');
     hideBtn.addEventListener('click', () => {
@@ -445,7 +454,7 @@ class BotWidget extends HTMLElement {
     messages.scrollTop = messages.scrollHeight;
 
     try {
-      const res = await fetch('http://localhost:5000/ask_question', {
+      const res = await fetch(`${BOT_API}/ask_question`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

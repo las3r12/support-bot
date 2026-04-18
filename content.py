@@ -52,7 +52,7 @@ class Scarper:
             return None, []
 
     def crawl(self, start_url, max_depth=0):
-        visited = set()
+        visited = {start_url}
         results = []
         queue = deque([(start_url, 0)])
         domain = urlparse(start_url).netloc
@@ -63,18 +63,16 @@ class Scarper:
             with lock:
                 if text:
                     results.append(text)
-                for link in links:
-                    if link not in visited:
-                        visited.add(link)
-                        queue.append((link, depth + 1))
-
+                if depth < max_depth:
+                    for link in links:
+                        if link not in visited:
+                            visited.add(link)
+                            queue.append((link, depth + 1))
         while queue:
             batch = []
             while queue:
                 url, depth = queue.popleft()
-                if url not in visited and depth <= max_depth:
-                    visited.add(url)
-                    batch.append((url, depth))
+                batch.append((url, depth))
 
             threads = [threading.Thread(target=worker, args=(url, depth)) for url, depth in batch]
             for t in threads:
