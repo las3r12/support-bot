@@ -285,7 +285,7 @@
     }
 
     async function updateFallbackMessage() {
-      const res = await fetch('/edit/fallback/update/' + "{{ token }}", {
+      const res = await fetch("/edit/{{ token }}/fallback/update", {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': '{{ session["csrf_token"] }}' },
         body: JSON.stringify({ "data": document.getElementById("widget-fallback-editor").value })

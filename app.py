@@ -1,17 +1,19 @@
 from flask import Flask, request, jsonify, session, redirect, render_template, make_response, abort
 from db_pool import Database
+from api import LLMClient
 import json
 import os
-from api import get_answer
 import content
 import secrets
+from content import Scarper
 
 
 with open("resources/config.json") as f:
     config = json.load(f)
 
 db = Database(config)
-
+scarper = Scarper()
+llm = LLMClient(config['llm_key'])
 app = Flask(__name__)
 #app.secret_key = os.urandom(24)
 app.secret_key = 'g'
@@ -66,12 +68,6 @@ def index():
     data = db.get_data(session['user_id'])
     return render_template('index.html', domains=data)
 
-@app.route("/ask", methods=["GET"])
-def ask():
-    if "user_id" not in session:
-        return redirect("/login")
-    return render_template("widget.html")
-
 @app.route("/create", methods=["POST"])
 def create():
     if "user_id" not in session:
@@ -122,7 +118,7 @@ def ask_question():
         data = jsonify({"error": "No question provided"}), 400
     token = data.get("token")
     try:
-        answer = get_answer(question, str(data.get('history')), token, db)
+        answer = llm.get_answer(question, str(data.get('history')), token, db)
         print(answer)
     except Exception as e:
         print(e)
@@ -168,7 +164,7 @@ def delete_text(token):
     db.remove_text(token)
     return {}, 200
 
-@app.route("/edit/fallback/update/<token>", methods=["POST"])
+@app.route("/edit/<token>/fallback/update", methods=["POST"])
 def update_fallback(token):
     if "user_id" not in session:
         return {"error" : "Invalid Credentials"}, 403
@@ -188,7 +184,7 @@ def scarp_page():
     url = request.json.get("url")
     depth = min(2, max(0, int(request.json.get("depth", 0))))
     try:
-        pages = content.crawl(url, max_depth=depth)
+        pages = scarper.crawl(url, max_depth=depth)
         text = "\n\n".join(pages)
     except Exception as e:
         return {"text" : ""}, 400
@@ -199,7 +195,8 @@ def logout():
     session.clear()
     return redirect("/login")
     
-
 if __name__ == "__main__":
     db.create_tables()
     app.run(debug=True)
+
+עמוד

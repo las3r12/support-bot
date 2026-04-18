@@ -1,14 +1,11 @@
 import json
 import hashlib
 import time
-import threading
 from contextlib import contextmanager
 from psycopg2.pool import ThreadedConnectionPool
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
-from sentence_transformers import SentenceTransformer
-import os
-MODEL_PATH = "./models/all-MiniLM-L6-v2"
+from embedder import Embedder
 
 class Database:
     def __init__(self, config: dict, minconn: int = 2, maxconn: int = 10):
@@ -25,8 +22,7 @@ class Database:
             memory_cost=65536,
             parallelism=2,
         )
-        self._model_lock = threading.Lock()
-        self.encoder = SentenceTransformer(MODEL_PATH)
+        self.embedder = Embedder()
 
 
     @contextmanager
@@ -41,25 +37,9 @@ class Database:
         finally:
             self._pool.putconn(conn)
 
-    def embed(self, texts):
-        return self.encoder.encode(texts, normalize_embeddings=True).tolist()
-    
-    def chunk_text(self, text: str, size: int = 500, overlap: int = 50):
-        chunks = []
-        start = 0
-        while start < len(text):
-            end = min(start + size, len(text))
-            if end < len(text):
-                last_space = text.rfind(" ", start, end)
-                if last_space > start:
-                    end = last_space
-            chunks.append(text[start:end].strip())
-            start += size - overlap
-        return chunks
-    
     def _sync_chunks(self, cur, text_id: int, content: str):
-        chunks = self.chunk_text(content)
-        vectors = self.embed(chunks)
+        chunks = self.embedder.chunk_text(content)
+        vectors = self.embedder.embed(chunks)
 
         cur.execute("DELETE FROM text_chunks WHERE text_id = %s", (text_id,))
 
@@ -70,7 +50,7 @@ class Database:
             """, (text_id, i, chunk, vector))
 
     def retrieve(self, domain_token: str, question: str, top_k: int = 5):
-        q_vector = self.embed([question])[0]
+        q_vector = self.embedder.embed([question])[0]
         try:
             with self._conn() as conn:
                 with conn.cursor() as cur:
