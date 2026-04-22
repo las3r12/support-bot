@@ -5,9 +5,9 @@ import secrets
 
 
 class LLMClient:
-    def __init__(self, token: str, max_context_len: int, model: str = "nvidia/nemotron-3-nano-30b-a3b:free", ):
-        self.token = token
-        self.model = model
+    def __init__(self, token: str, max_context_len: int, model: str):
+        self._token = token
+        self._model = model
         self._hostname = "openrouter.ai"
         self._path = "/api/v1/chat/completions"
         self._max_context_len = max_context_len
@@ -24,28 +24,33 @@ class LLMClient:
             print(chunks)
 
         def build_prompt(ctx):
-            raw_text = "=== DATA START ===\n" + ctx + "\n=== DATA END ===\n" \
-                + "=== MESSAGE HISTORY START ===\n" + history + "\n=== MESSAGE HISTORY END ===" \
-                + "=== QUESTION START ===\n" + question + "\n=== QUESTION END ==="
-            wrapped_text = self._wrap(raw_text, system_prompt)
-            return system_prompt + "\n" + wrapped_text
+            data_nonce = self._generate_nonce()
+            history_nonce = self._generate_nonce()
+            question_nonce = self._generate_nonce()
+
+            history_block = self._wrap_tagged(history, "HISTORY", history_nonce)
+            question_block = self._wrap_tagged(question, "QUESTION", question_nonce)
+
+            filled_prompt = system_prompt \
+                .replace("{{DATA_NONCE}}", data_nonce) \
+                .replace("{{HISTORY_NONCE}}", history_nonce) \
+                .replace("{{QUESTION_NONCE}}", question_nonce)
+
+            overhead = len(filled_prompt) + len(history_block) + len(question_block)
+            available = self._max_context_len - overhead
+            if available <= 0:
+                raise ValueError("Context length too small")
+            data_block = self._wrap_tagged(ctx[:available], "DATA", data_nonce)
+
+            return filled_prompt + "\n" + data_block + "\n" + history_block + "\n" + question_block
 
         resp = self._complete(build_prompt(context))
         if resp['status'] == 'fallback' and chunks:
             resp = self._complete(build_prompt(db.get_all_text(key)))
         return resp
 
-    def _wrap(self, data: str, prompt: str) -> str:
-        nonce = self._generate_nonce()
-        open_tag = f"<DATA_{nonce}>\n"
-        close_tag = f"\n</DATA_{nonce}>"
-        overhead = len(open_tag) + len(close_tag) + len(prompt)
-        available = self._max_context_len - overhead
-        if available <= 0:
-            raise ValueError("Context length too small for wrapping overhead and prompt")
-        if len(data) > available:
-            data = data[:available]
-        return open_tag + data + close_tag
+    def _wrap_tagged(self, data: str, tag: str, nonce: str) -> str:
+        return f"<{tag}_{nonce}>\n{data}\n</{tag}_{nonce}>"
 
 
     def _complete(self, prompt: str) -> dict:
@@ -63,7 +68,7 @@ class LLMClient:
             f"Host: {self._hostname}\r\n"
             f"Content-Type: application/json\r\n"
             f"Content-Length: {len(body)}\r\n"
-            f"Authorization: Bearer {self.token}\r\n"
+            f"Authorization: Bearer {self._token}\r\n"
             f"Connection: close\r\n"
             "\r\n"
         )

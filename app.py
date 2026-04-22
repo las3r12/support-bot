@@ -5,18 +5,42 @@ import json
 import os
 import content
 import secrets
-from content import Scarper
+from content import Scraper
 
 
 with open("resources/config.json") as f:
     config = json.load(f)
 
 db = Database(config)
-scarper = Scarper()
+scarper = Scraper(timeout=config['scraper_timeout'])
 llm = LLMClient(config['llm_key'], config['max_context_len'])
 app = Flask(__name__)
 #app.secret_key = os.urandom(24)
 app.secret_key = 'g'
+app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+
+
+def validate_password(password: str):
+    if len(password) < 8:
+        return "Password must be at least 8 characters"
+    if len(password) > 100:
+        return "Password must be 100 characters or less"
+    if not any(c.isupper() for c in password):
+        return "Password must contain at least one uppercase letter"
+    if not any(c.islower() for c in password):
+        return "Password must contain at least one lowercase letter"
+    if not any(c.isdigit() for c in password):
+        return "Password must contain at least one number"
+    return None
+
+
+@app.context_processor
+def inject_is_admin():
+    if 'user_id' in session:
+        return {'is_admin': db.get_role(session['user_id']) == 'admin'}
+    return {'is_admin': False}
 
 
 @app.before_request
@@ -37,10 +61,13 @@ def register():
         password = request.form.get("password", "").strip()
         if not username or not password:
             return jsonify({"error" : "Missing username or password"}), 400
+        if len(username) > 100:
+            return jsonify({"error": "Username must be 100 characters or less"}), 400
         if db.user_exists(username):
             return jsonify({"error" : "Username already taken"}), 400
-        if len(password) < 8:
-            return jsonify({"error": "Password must be at least 8 characters"}), 400
+        pw_error = validate_password(password)
+        if pw_error:
+            return jsonify({"error": pw_error}), 400
         db.create_user(username, password)
         return {}, 200
     else:
@@ -75,6 +102,8 @@ def create():
     domain = request.form["domain"]
     if not domain or domain == "":
         return {"error" : "Empty Domain"}, 400
+    if len(domain) > 200:
+        return {"error": "Domain must be 200 characters or less"}, 400
     db.add_website(domain, session['user_id'])
     return redirect("/")
 
@@ -88,8 +117,12 @@ def add_data_source(token):
     text = request.form["text"]
     if not name or name == "":
         return {"error" : "Source name can't be empty"}, 400
+    if len(name) > 200:
+        return {"error": "Source name must be 200 characters or less"}, 400
     if not text or text == "":
         return {"error" : "Source text can't be empty"}, 400
+    if len(text) > config["max_source_len"]:
+        return {"error": f"Source text must be {config['max_source_len']} characters or less"}, 400
     db.add_source(token, name, text)
     return redirect("/edit/"+token)
 
@@ -100,6 +133,8 @@ def remove_data_source(token):
         return {"status" : "Invalid Credentials"}, 403
     if not db.check_data_token(session['user_id'], token):
         return {"status" : "Invalid Credentials"}, 403
+    db.remove_website(token)
+    return {}, 200
 
 
 @app.route("/ask_question", methods=["OPTIONS"])
@@ -116,13 +151,18 @@ def ask_question():
     question = data.get("question")
     if not question:
         data = jsonify({"error": "No question provided"}), 400
+    if len(question) > config["max_question_len"]:
+        resp = jsonify({"error": "Question too long"})
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        return resp, 400
     token = data.get("token")
     if db.get_credits(token) <= 0:
         resp = jsonify({"answer": config["no_credits_msg"]})
         resp.headers["Access-Control-Allow-Origin"] = "*"
         return resp
+    history = str(data.get('history', ''))[:config["max_history_len"]]
     try:
-        answer = llm.get_answer(question, str(data.get('history')), token, db)
+        answer = llm.get_answer(question, history, token, db)
         print(answer)
     except Exception as e:
         print(e)
@@ -158,6 +198,8 @@ def update_text(token):
     new_text = json_data.get('data')
     if not new_text or new_text == "":
         return {"error" : "Source text can't be empty"}, 400
+    if len(new_text) > config["max_source_len"]:
+        return {"error": f"Source text must be {config['max_source_len']} characters or less"}, 400
     db.update_text(token, new_text)
     return {}, 200
 
@@ -186,6 +228,8 @@ def update_bot_name(token):
     name = request.json.get("data", "").strip()
     if not name:
         return {"error": "Bot name can't be empty"}, 400
+    if len(name) > 200:
+        return {"error": "Bot name must be 200 characters or less"}, 400
     db.update_bot_name(token, name)
     return {}, 200
 
@@ -229,8 +273,9 @@ def change_password():
     json_data = request.json
     old_pw = json_data.get("old_password", "")
     new_pw = json_data.get("new_password", "")
-    if len(new_pw) < 8:
-        return {"error": "Password must be at least 8 characters"}, 400
+    pw_error = validate_password(new_pw)
+    if pw_error:
+        return {"error": pw_error}, 400
     if not db.change_password(session["user_id"], old_pw, new_pw):
         return {"error": "Current password is incorrect"}, 400
     return {}, 200
@@ -264,4 +309,5 @@ def logout():
     
 if __name__ == "__main__":
     db.create_tables()
-    app.run(debug=True)
+    ssl = ('keys/localhost.pem', 'keys/localhost-key.pem')
+    app.run(debug=True, ssl_context=ssl)

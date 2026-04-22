@@ -22,9 +22,10 @@
               <span class="domain-icon">🌐</span>
               <span class="domain-name">{{ domain.domain }}</span>
             </div>
-            <button class="edit-toggle" onclick="window.location.href='/edit/{{ domain.token }}'">
-              ✏ Edit
-            </button>
+            <div style="display:flex;gap:0.5rem">
+              <button class="edit-toggle" onclick="window.location.href='/edit/{{ domain.token }}'">✏ Edit</button>
+              <button class="btn-delete" onclick="deleteDomain('{{ domain.token }}')">✕ Delete</button>
+            </div>
           </div>
         </div>
         {% endfor %}
@@ -48,6 +49,18 @@
     </form>
     <p id="create-error" style="color: red; font-size: 0.9rem; margin: 0; display: none;"></p>
     <script>
+      const CSRF_TOKEN = "{{ session['csrf_token'] }}";
+
+      async function deleteDomain(token) {
+        if (!confirm('Are you sure you want to delete this domain? This cannot be undone.')) return;
+        const res = await fetch(`/edit/${token}/delete`, {
+          method: 'POST',
+          headers: { 'X-CSRF-Token': CSRF_TOKEN }
+        });
+        if (res.ok) location.reload();
+        else alert('Failed to delete domain.');
+      }
+
       document.getElementById('create-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const form = e.target;

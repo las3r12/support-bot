@@ -1,6 +1,5 @@
 import json
-import hashlib
-import time
+import secrets
 from contextlib import contextmanager
 from psycopg2.pool import ThreadedConnectionPool
 from argon2 import PasswordHasher
@@ -94,7 +93,7 @@ class Database:
             return None
 
     def add_website(self, domain: str, user_id: int):
-        token = hashlib.sha256((str(time.time()) + str(user_id)).encode()).hexdigest()[:32]
+        token = secrets.token_urlsafe(32)
         try:
             with self._conn() as conn:
                 with conn.cursor() as cur:
@@ -107,7 +106,7 @@ class Database:
             return None
 
     def add_source(self, data_token: str, name: str, text: str):
-        token = hashlib.sha256((str(time.time()) + text).encode()).hexdigest()[:32]
+        token = secrets.token_urlsafe(32)
         try:
             with self._conn() as conn:
                 with conn.cursor() as cur:
@@ -203,9 +202,12 @@ class Database:
             with self._conn() as conn:
                 with conn.cursor() as cur:
                     cur.execute(
-                        "UPDATE texts SET descr=%s WHERE token=%s",
+                        "UPDATE texts SET descr=%s WHERE token=%s RETURNING id",
                         (text, token),
                     )
+                    row = cur.fetchone()
+                    if row:
+                        self._sync_chunks(cur, row[0], text)
             return True
         except Exception as e:
             print(e)
@@ -264,6 +266,16 @@ class Database:
             print(e)
             return None
         
+    def remove_website(self, token: str):
+        try:
+            with self._conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("DELETE FROM data WHERE token=%s", (token,))
+            return True
+        except Exception as e:
+            print(e)
+            return False
+
     def get_bot_name(self, domain_token: str):
         try:
             with self._conn() as conn:
@@ -303,7 +315,7 @@ class Database:
             with self._conn() as conn:
                 with conn.cursor() as cur:
                     cur.execute(
-                        "SELECT id, username, credits FROM users WHERE user_role = 'user' ORDER BY username"
+                        "SELECT id, username, credits FROM users ORDER BY username"
                     )
                     return [{'id': r[0], 'username': r[1], 'credits': r[2]} for r in cur.fetchall()]
         except Exception as e:

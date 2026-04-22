@@ -9,20 +9,20 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS data (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    domain TEXT,
+    domain VARCHAR(200) NOT NULL,
     UNIQUE (user_id, domain),
-    name TEXT NOT NULL DEFAULT 'Support Bot',
+    name VARCHAR(200) NOT NULL DEFAULT 'Support Bot',
     msg TEXT DEFAULT 'Unfortunately I can not answer your question.',
-    token TEXT
+    token CHAR(43) NOT NULL UNIQUE
 );
 
 CREATE TABLE IF NOT EXISTS texts (
     id SERIAL PRIMARY KEY,
     data_id INTEGER NOT NULL REFERENCES data(id) ON DELETE CASCADE,
-    name TEXT,
+    name VARCHAR(200),
     UNIQUE (data_id, name),
     descr TEXT,
-    token TEXT
+    token CHAR(43) NOT NULL UNIQUE
 );
 
 CREATE EXTENSION IF NOT EXISTS vector;
@@ -37,5 +37,4 @@ CREATE TABLE IF NOT EXISTS text_chunks (
 );
 
 CREATE INDEX IF NOT EXISTS text_chunks_embedding_idx
-    ON text_chunks USING ivfflat (embedding vector_cosine_ops)
-    WITH (lists = 100);
+    ON text_chunks USING hnsw (embedding vector_cosine_ops);

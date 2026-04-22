@@ -3,9 +3,13 @@ from urllib.parse import urljoin, urlparse
 import requests
 from collections import deque
 import threading
+import ipaddress
+import socket
 
-class Scarper:
-    def __init__(self):
+
+class Scraper:
+    def __init__(self, timeout=5):
+        self.timeout = timeout
         self.headers = {
             "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:149.0) Gecko/20100101 Firefox/149.0",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -32,8 +36,10 @@ class Scarper:
         return text
 
     def _fetch(self, url, depth, domain, max_depth):
+        if not self._is_safe_url(url):
+            return None, []
         try:
-            resp = requests.get(url, timeout=5, headers=self.headers)
+            resp = requests.get(url, timeout=self.timeout, headers=self.headers)
             if "text/html" not in resp.headers.get("Content-Type", ''):
                 return None, []
             soup = BeautifulSoup(resp.text, "html.parser")
@@ -52,6 +58,8 @@ class Scarper:
             return None, []
 
     def crawl(self, start_url, max_depth=0):
+        if not self._is_safe_url(start_url):
+            raise ValueError(f"Blocked URL: {start_url}")
         visited = {start_url}
         results = []
         queue = deque([(start_url, 0)])
@@ -81,3 +89,16 @@ class Scarper:
                 t.join()
 
         return results
+    
+    def _is_safe_url(self, url: str) -> bool:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return False
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+        try:
+            ip = ipaddress.ip_address(socket.getaddrinfo(hostname, None)[0][4][0])
+        except Exception:
+            return False
+        return ip.is_global and not ip.is_loopback and not ip.is_private and not ip.is_link_local

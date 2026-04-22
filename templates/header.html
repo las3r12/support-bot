@@ -7,6 +7,9 @@
     <nav class="header-nav">
       <a href="/">Dashboard</a>
       <a href="/account">Account</a>
+      {% if is_admin %}
+        <a href="/admin">Admin</a>
+      {% endif %}
       <a href="/logout" class="nav-logout">Logout</a>
     </nav>
   </div>
