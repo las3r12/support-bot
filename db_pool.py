@@ -22,6 +22,7 @@ class Database:
             parallelism=2,
         )
         self.embedder = Embedder()
+        self.dummy_hash = self.ph.hash("dummy")
 
 
     @contextmanager
@@ -190,7 +191,9 @@ class Database:
                     row = cur.fetchone()
                     if row and self.ph.verify(row[1], password):
                         return row[0]
-                    return None
+                    else:
+                        self.ph.verify(self.dummy_hash, password)
+                        return None
         except VerifyMismatchError:
             return None
         except Exception as e:
