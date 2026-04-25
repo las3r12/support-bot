@@ -1,4 +1,4 @@
-const BOT_API = 'http://localhost:5000';
+const BOT_API = 'https://localhost:5000';
 
 class BotWidget extends HTMLElement {
   constructor() {
@@ -377,6 +377,7 @@ class BotWidget extends HTMLElement {
       .then(r => r.json())
       .then(data => {
         if (data.bot_name) shadow.querySelector('.header-name').textContent = data.bot_name;
+        if (data.hello_msg) this.addMessage(data.hello_msg, 'bot', messages, typingEl);
       })
       .catch(() => {});
 
@@ -449,7 +450,6 @@ class BotWidget extends HTMLElement {
     input.value = '';
     sendBtn.disabled = true;
 
-    // Show typing
     typingEl.classList.add('visible');
     messages.scrollTop = messages.scrollHeight;
 
@@ -466,9 +466,11 @@ class BotWidget extends HTMLElement {
 
       const data = await res.json();
       typingEl.classList.remove('visible');
-
+      console.log(res.status);
       if (res.ok) {
         this.addMessage(data.answer, 'bot', messages, typingEl);
+      } else if (res.status === 429) {
+        this.addMessage(data.error || 'Too many requests. Please try again later.', 'bot', messages, typingEl);
       } else {
         this.addMessage(data.error || 'An error occurred.', 'bot', messages, typingEl);
       }

@@ -3,7 +3,8 @@ CREATE TABLE IF NOT EXISTS users (
     username VARCHAR(80) UNIQUE NOT NULL,
     password VARCHAR(200) NOT NULL,
     user_role TEXT CHECK (user_role IN ('admin', 'user')) DEFAULT 'user',
-    credits INTEGER NOT NULL DEFAULT 1000
+    credits INTEGER NOT NULL DEFAULT 1000,
+    enabled BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 CREATE TABLE IF NOT EXISTS data (
@@ -12,8 +13,10 @@ CREATE TABLE IF NOT EXISTS data (
     domain VARCHAR(200) NOT NULL,
     UNIQUE (user_id, domain),
     name VARCHAR(200) NOT NULL DEFAULT 'Support Bot',
+    hello_msg TEXT DEFAULT 'Hello! How can I help you today?',
     msg TEXT DEFAULT 'Unfortunately I can not answer your question.',
-    token CHAR(43) NOT NULL UNIQUE
+    token CHAR(43) NOT NULL UNIQUE,
+    bot_enabled BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 CREATE TABLE IF NOT EXISTS texts (
@@ -38,3 +41,4 @@ CREATE TABLE IF NOT EXISTS text_chunks (
 
 CREATE INDEX IF NOT EXISTS text_chunks_embedding_idx
     ON text_chunks USING hnsw (embedding vector_cosine_ops);
+

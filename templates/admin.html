@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Admin — Users</title>
+  <title>Admin</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="/static/css/style.css">
   <style>
@@ -75,6 +75,30 @@
       padding: 3rem;
       color: #6b7280;
     }
+    .status-badge {
+      display: inline-block;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+    }
+    .status-badge.enabled  { background: #dcfce7; color: #15803d; }
+    .status-badge.disabled { background: #fee2e2; color: #b91c1c; }
+    .btn-toggle {
+      padding: 0.35rem 0.8rem;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.15s;
+      color: #fff;
+    }
+    .btn-toggle.disable { background: #ef4444; }
+    .btn-toggle.disable:hover { background: #b91c1c; }
+    .btn-toggle.enable  { background: #3b82f6; }
+    .btn-toggle.enable:hover  { background: #1d4ed8; }
   </style>
 </head>
 <body class="app-layout">
@@ -89,6 +113,7 @@
         <tr>
           <th>Username</th>
           <th>Credits</th>
+          <th>Status</th>
         </tr>
       </thead>
       <tbody>
@@ -106,6 +131,19 @@
               />
               <button class="btn-save" onclick="saveCredits({{ user.id }}, this)">Save</button>
               <span class="save-status" id="status-{{ user.id }}"></span>
+            </div>
+          </td>
+          <td>
+            <div class="credits-row">
+              <span class="status-badge {{ 'enabled' if user.enabled else 'disabled' }}" id="badge-{{ user.id }}">
+                {{ 'Enabled' if user.enabled else 'Disabled' }}
+              </span>
+              <button
+                class="btn-toggle {{ 'disable' if user.enabled else 'enable' }}"
+                id="toggle-btn-{{ user.id }}"
+                onclick="toggleUser({{ user.id }}, {{ 'true' if user.enabled else 'false' }}, this)"
+              >{{ 'Disable' if user.enabled else 'Enable' }}</button>
+              <span class="save-status" id="toggle-status-{{ user.id }}"></span>
             </div>
           </td>
         </tr>
@@ -147,6 +185,31 @@
         status.className = 'save-status error visible';
       }
       setTimeout(() => { status.className = 'save-status'; }, 2000);
+    }
+
+    async function toggleUser(userId, currentlyEnabled, btn) {
+      const action = currentlyEnabled ? 'disable' : 'enable';
+      const status = document.getElementById('toggle-status-' + userId);
+      const badge = document.getElementById('badge-' + userId);
+      btn.disabled = true;
+      const res = await fetch('/admin/' + action + '/' + userId, {
+        method: 'POST',
+        headers: { 'X-CSRF-Token': CSRF_TOKEN }
+      });
+      btn.disabled = false;
+      if (res.ok) {
+        const nowEnabled = !currentlyEnabled;
+        badge.textContent = nowEnabled ? 'Enabled' : 'Disabled';
+        badge.className = 'status-badge ' + (nowEnabled ? 'enabled' : 'disabled');
+        btn.textContent = nowEnabled ? 'Disable' : 'Enable';
+        btn.className = 'btn-toggle ' + (nowEnabled ? 'disable' : 'enable');
+        btn.setAttribute('onclick', `toggleUser(${userId}, ${nowEnabled}, this)`);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        status.textContent = data.error || 'Error';
+        status.className = 'save-status error visible';
+        setTimeout(() => { status.className = 'save-status'; }, 2000);
+      }
     }
   </script>
 </body>

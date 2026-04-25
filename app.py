@@ -6,20 +6,45 @@ import os
 import content
 import secrets
 from content import Scraper
+from rate_limit import IPRateLimiter
 
 
 with open("resources/config.json") as f:
     config = json.load(f)
 
-db = Database(config)
+db = Database(config, retrieval_distance_threshold=config['retrieval_distance_threshold'], retrieval_top_k=config['retrieval_top_k'])
 scarper = Scraper(timeout=config['scraper_timeout'])
-llm = LLMClient(config['llm_key'], config['max_context_len'])
+llm = LLMClient(config['llm_key'], config['max_context_len'], config['model'])
+rate_limiter = IPRateLimiter(config["rate_limit_per_ip"], config["rate_limit_window_sec"])
+widget_rate_limiter = IPRateLimiter(config["rate_limit_widget_per_ip"], config["rate_limit_widget_window_sec"])
 app = Flask(__name__)
 #app.secret_key = os.urandom(24)
 app.secret_key = 'g'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
+
+
+@app.errorhandler(413)
+def request_too_large(_):
+    return jsonify({"error": f"Content is too large (max {config['max_source_len']} characters)"}), 413
+
+@app.before_request
+def check_rate_limit():
+    if request.method == "OPTIONS" or request.path.startswith("/static/"):
+        return
+    if request.path in ("/ask_question", "/api/scarp/links", "/api/scarp/fetch"):
+        limiter = widget_rate_limiter
+    elif "user_id" in session or request.path in ("/login", "/register"):
+        limiter = rate_limiter
+    else:
+        return
+    if not limiter.is_allowed(request.remote_addr):
+        resp = jsonify({"error": f"Too many requests. Next request possible in {limiter.next_allowed(request.remote_addr)}s"})
+        if request.path == "/ask_question":
+            resp.headers["Access-Control-Allow-Origin"] = "*"
+        return resp, 429
 
 
 def validate_password(password: str):
@@ -48,21 +73,27 @@ def check_csrf():
     if 'user_id' not in session:
         return
     if request.method in ('POST'):
-        token = request.headers.get('X-CSRF-Token') or request.form.get('csrf_token')
+        if request.is_json:
+            token = request.headers.get('X-CSRF-Token')
+        else:
+            token = request.headers.get('X-CSRF-Token') or request.form.get('csrf_token')
         if token != session.get('csrf_token'):
             abort(403)
 
 
 @app.route("/register", methods=["POST", "GET"])
 def register():
-    """Register a new user on the website."""
     if request.method == 'POST':
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "").strip()
         if not username or not password:
             return jsonify({"error" : "Missing username or password"}), 400
+        if len(username) < 8:
+            return jsonify({"error": "Username must be at least 8 characters"}), 400
         if len(username) > 100:
             return jsonify({"error": "Username must be 100 characters or less"}), 400
+        if not username.isprintable() or any(c.isspace() for c in username):
+            return jsonify({"error": "Username must not contain spaces or whitespace"}), 400
         if db.user_exists(username):
             return jsonify({"error" : "Username already taken"}), 400
         pw_error = validate_password(password)
@@ -75,7 +106,6 @@ def register():
 
 @app.route("/login", methods=["POST", "GET"])
 def login():
-    """Log in into an existing account."""
     if request.method == "POST":
         username = request.form["username"]
         password = request.form["password"]
@@ -89,7 +119,6 @@ def login():
 
 @app.route("/", methods=["GET"])
 def index():
-    """Return an index page"""
     if "user_id" not in session:
         return redirect("/login")
     data = db.get_data(session['user_id'])
@@ -99,22 +128,29 @@ def index():
 def create():
     if "user_id" not in session:
         return {"error" : "Invalid Credentials"}, 403
-    domain = request.form["domain"]
-    if not domain or domain == "":
-        return {"error" : "Empty Domain"}, 400
+    domain = request.form.get("domain", "").strip()
+    if not domain:
+        return {"error": "Domain can't be empty"}, 400
     if len(domain) > 200:
         return {"error": "Domain must be 200 characters or less"}, 400
-    db.add_website(domain, session['user_id'])
+    if len(db.get_data(session['user_id'])) >= config['max_domains_per_account']:
+        return {"error": f"Maximum of {config['max_domains_per_account']} domains per account"}, 400
+    result = db.add_website(domain, session['user_id'])
+    if result is False:
+        return {"error": "You already have a bot for this domain"}, 400
+    if result is None:
+        return {"error": "Failed to create domain"}, 500
     return redirect("/")
 
 @app.route("/edit/<token>/add", methods=["POST"])
 def add_data_source(token):
+    print("add_data_source reached, content-length:", request.content_length)
     if "user_id" not in session:
         return {"status" : "Invalid Credentials"}, 403
     if not db.check_data_token(session['user_id'], token):
         return {"status" : "Invalid Credentials"}, 403
-    name = request.form["name"]
-    text = request.form["text"]
+    name = request.json.get("name", "")
+    text = request.json.get("text", "")
     if not name or name == "":
         return {"error" : "Source name can't be empty"}, 400
     if len(name) > 200:
@@ -123,7 +159,10 @@ def add_data_source(token):
         return {"error" : "Source text can't be empty"}, 400
     if len(text) > config["max_source_len"]:
         return {"error": f"Source text must be {config['max_source_len']} characters or less"}, 400
-    db.add_source(token, name, text)
+    if db.count_sources(token) >= config["max_sources_per_bot"]:
+        return {"error": f"Maximum of {config['max_sources_per_bot']} data sources per bot"}, 400
+    if db.add_source(token, name, text) is False:
+        return {"error": "A source with this name already exists"}, 400
     return redirect("/edit/"+token)
 
 
@@ -150,12 +189,18 @@ def ask_question():
     data = request.json
     question = data.get("question")
     if not question:
-        data = jsonify({"error": "No question provided"}), 400
+        resp = jsonify({"error": "No question provided"})
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        return resp, 400
     if len(question) > config["max_question_len"]:
         resp = jsonify({"error": "Question too long"})
         resp.headers["Access-Control-Allow-Origin"] = "*"
         return resp, 400
     token = data.get("token")
+    if not db.get_bot_enabled(token):
+        resp = jsonify({"answer": "This bot is currently disabled."})
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        return resp
     if db.get_credits(token) <= 0:
         resp = jsonify({"answer": config["no_credits_msg"]})
         resp.headers["Access-Control-Allow-Origin"] = "*"
@@ -185,7 +230,9 @@ def send_edit_page(token):
     data = db.get_all_texts(token)
     fallback_msg = db.get_fallback(token)[0]
     bot_name = db.get_bot_name(token)
-    return render_template('edit.html', sources=data, token=token, fallback_msg=fallback_msg, bot_name=bot_name)
+    bot_enabled = db.get_bot_enabled(token)
+    hello_msg = db.get_hello_msg(token)
+    return render_template('edit.html', sources=data, token=token, fallback_msg=fallback_msg, bot_name=bot_name, bot_enabled=bot_enabled, hello_msg=hello_msg, max_source_len=config['max_source_len'], max_scrape_depth=config['max_scrape_depth'])
 
 
 @app.route("/edit/update/<token>", methods=["POST"])
@@ -215,7 +262,8 @@ def delete_text(token):
 @app.route("/bot_info/<token>", methods=["GET"])
 def bot_info(token):
     name = db.get_bot_name(token)
-    response = make_response(jsonify({"bot_name": name}))
+    hello_msg = db.get_hello_msg(token)
+    response = make_response(jsonify({"bot_name": name, "hello_msg": hello_msg}))
     response.headers["Access-Control-Allow-Origin"] = "*"
     return response
 
@@ -233,6 +281,32 @@ def update_bot_name(token):
     db.update_bot_name(token, name)
     return {}, 200
 
+@app.route("/edit/<token>/enabled/update", methods=["POST"])
+def update_bot_enabled(token):
+    if "user_id" not in session:
+        return {"error": "Invalid Credentials"}, 403
+    if not db.check_data_token(session['user_id'], token):
+        return {"error": "Invalid Credentials"}, 403
+    enabled = request.json.get("enabled")
+    if not isinstance(enabled, bool):
+        return {"error": "Invalid value"}, 400
+    db.set_bot_enabled(token, enabled)
+    return {}, 200
+
+@app.route("/edit/<token>/hello/update", methods=["POST"])
+def update_hello_msg(token):
+    if "user_id" not in session:
+        return {"error": "Invalid Credentials"}, 403
+    if not db.check_data_token(session['user_id'], token):
+        return {"error": "Invalid Credentials"}, 403
+    msg = request.json.get("data", "").strip()
+    if not msg:
+        return {"error": "Hello message can't be empty"}, 400
+    if len(msg) > config["max_hello_msg_len"]:
+        return {"error": f"Hello message must be {config['max_hello_msg_len']} characters or less"}, 400
+    db.update_hello_msg(token, msg)
+    return {}, 200
+
 @app.route("/edit/<token>/fallback/update", methods=["POST"])
 def update_fallback(token):
     if "user_id" not in session:
@@ -246,25 +320,45 @@ def update_fallback(token):
     db.update_fallback(token, new_text)
     return {}, 200
 
-@app.route("/api/scarp" ,methods=["POST"])
-def scarp_page():
+@app.route("/api/scarp/links", methods=["POST"])
+def scarp_links():
     if "user_id" not in session:
-        return {"error" : "Invalid Credentials"}, 403
+        return {"error": "Invalid Credentials"}, 403
     url = request.json.get("url")
-    depth = min(2, max(0, int(request.json.get("depth", 0))))
+    if not url:
+        return {"error": "No URL provided"}, 400
+    depth = min(config["max_scrape_depth"], max(0, int(request.json.get("depth", 0))))
     try:
-        pages = scarper.crawl(url, max_depth=depth)
-        text = "\n\n".join(pages)
+        links = scarper.get_links(url, max_links=config["max_scrape_links"], max_depth=depth)
     except Exception as e:
-        return {"text" : ""}, 400
-    return {"text" : text}, 200
+        return {"error": str(e)}, 400
+    return {"links": links, "max_select": config["max_scrape_select"]}, 200
+
+@app.route("/api/scarp/fetch", methods=["POST"])
+def scarp_fetch():
+    if "user_id" not in session:
+        return {"error": "Invalid Credentials"}, 403
+    urls = request.json.get("urls", [])
+    if not isinstance(urls, list) or not urls:
+        return {"error": "No URLs provided"}, 400
+    if len(urls) > config["max_scrape_select"]:
+        return {"error": f"Maximum {config['max_scrape_select']} URLs allowed"}, 400
+    for url in urls:
+        if not isinstance(url, str):
+            return {"error": "Invalid URL list"}, 400
+    try:
+        text = scarper.fetch_pages(urls)
+    except Exception as e:
+        return {"error": str(e)}, 400
+    return {"text": text}, 200
 
 @app.route("/account", methods=["GET"])
 def account():
     if "user_id" not in session:
         return redirect("/login")
     credits = db.get_credits_by_user(session["user_id"])
-    return render_template("account.html", credits=credits)
+    username = db.get_username(session["user_id"])
+    return render_template("account.html", credits=credits, username=username)
 
 @app.route("/account/password", methods=["POST"])
 def change_password():
@@ -300,6 +394,26 @@ def update_credits(user_id):
     if credits is None or not isinstance(credits, int) or credits < 0:
         return {"error": "Invalid credits value"}, 400
     db.set_credits(user_id, credits)
+    return {}, 200
+
+@app.route("/admin/disable/<int:user_id>", methods=["POST"])
+def disable_user(user_id):
+    if "user_id" not in session:
+        return {"error": "Invalid Credentials"}, 403
+    if db.get_role(session["user_id"]) != "admin":
+        abort(403)
+    if not db.disable_user(user_id):
+        return {"error": "User not found"}, 404
+    return {}, 200
+
+@app.route("/admin/enable/<int:user_id>", methods=["POST"])
+def enable_user(user_id):
+    if "user_id" not in session:
+        return {"error": "Invalid Credentials"}, 403
+    if db.get_role(session["user_id"]) != "admin":
+        abort(403)
+    if not db.enable_user(user_id):
+        return {"error": "User not found"}, 404
     return {}, 200
 
 @app.route("/logout")

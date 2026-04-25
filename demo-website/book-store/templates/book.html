@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}{{ book.title }} — PageTurner Books{% endblock %}
+
+{% block content %}
+<div class="container">
+  <a class="back-link" href="/">&#8592; Back to Catalogue</a>
+
+  <div class="book-detail">
+    <div>
+      <img src="{{ book.cover }}" alt="{{ book.title }}">
+    </div>
+    <div class="book-detail-info">
+      <h1>{{ book.title }}</h1>
+      <div class="book-detail-author">by {{ book.author }}</div>
+
+      <div class="book-meta">
+        <span class="meta-tag">{{ book.genre }}</span>
+        <span class="meta-tag">{{ book.pages }} pages</span>
+        <span class="meta-tag">Published {{ book.published }}</span>
+        <span class="meta-tag">ISBN {{ book.isbn }}</span>
+      </div>
+
+      <p class="book-description">{{ book.description }}</p>
+
+      <div class="book-price-row">
+        <span class="book-price-large">${{ "%.2f"|format(book.price) }}</span>
+        <a class="btn" href="#">Add to Cart</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

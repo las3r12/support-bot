@@ -25,6 +25,12 @@
       font-size: 1rem;
       color: #111827;
     }
+    .username-value {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #111827;
+      margin-bottom: 1.25rem;
+    }
     .credits-badge {
       display: inline-block;
       font-size: 2rem;
@@ -83,6 +89,8 @@
     <div class="account-sections">
 
       <div class="account-card">
+        <h2>Username</h2>
+        <div class="username-value">{{ username }}</div>
         <h2>Credits</h2>
         <div class="credits-badge">{{ credits }}</div>
         <div class="credits-label">remaining credits</div>

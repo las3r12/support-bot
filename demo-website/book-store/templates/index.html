@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}PageTurner Books — Classic Literature{% endblock %}
+
+{% block content %}
+<div class="hero">
+  <h1>PageTurner Books</h1>
+  <p>Hand-picked classics, delivered to your door.</p>
+</div>
+
+<div class="container">
+  <h2 class="section-title">Our Collection</h2>
+  <div class="book-grid">
+    {% for book in books %}
+    <a class="book-card" href="/book/{{ book.id }}">
+      <img src="{{ book.cover }}" alt="{{ book.title }}" loading="lazy">
+      <div class="book-card-body">
+        <div class="book-card-title">{{ book.title }}</div>
+        <div class="book-card-author">{{ book.author }}</div>
+        <div class="book-card-price">${{ "%.2f"|format(book.price) }}</div>
+        <span class="btn">View Book</span>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+
+  <h2 class="section-title" id="faq">Frequently Asked Questions</h2>
+  <div class="faq-section">
+
+    <div class="faq-item">
+      <button class="faq-question">
+        How long does delivery take?
+        <span class="arrow">&#9660;</span>
+      </button>
+      <div class="faq-answer">
+        Standard delivery takes <strong>3–5 business days</strong> within the US. Express shipping (1–2 business days) is available at checkout for an additional fee. International orders typically arrive within 10–14 business days depending on the destination country.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question">
+        Do you offer free delivery?
+        <span class="arrow">&#9660;</span>
+      </button>
+      <div class="faq-answer">
+        Yes! All orders over <strong>$25</strong> qualify for free standard shipping within the US. Orders under $25 have a flat shipping fee of $3.99. Free shipping is automatically applied at checkout when your order total meets the threshold.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question">
+        What is your returns policy?
+        <span class="arrow">&#9660;</span>
+      </button>
+      <div class="faq-answer">
+        We accept returns within <strong>30 days</strong> of delivery. Books must be in their original condition — unread and undamaged. To start a return, email us with your order number and we'll send a prepaid return label. Refunds are processed within 5 business days of receiving the item.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question">
+        Are your books new or used?
+        <span class="arrow">&#9660;</span>
+      </button>
+      <div class="faq-answer">
+        All books in our catalogue are brand new unless explicitly marked otherwise. We source directly from publishers and authorised distributors to guarantee quality. Condition is always noted on the product page.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question">
+        Can I track my order?
+        <span class="arrow">&#9660;</span>
+      </button>
+      <div class="faq-answer">
+        Yes. Once your order ships you will receive a confirmation email with a tracking number. You can use this to follow your parcel in real time on the carrier's website. Tracking updates typically appear within 24 hours of dispatch.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question">
+        Do you ship internationally?
+        <span class="arrow">&#9660;</span>
+      </button>
+      <div class="faq-answer">
+        We ship to over 40 countries worldwide. International shipping rates and estimated delivery times are calculated at checkout based on your location. Please note that customs duties or import taxes may apply and are the responsibility of the buyer.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question">
+        What payment methods do you accept?
+        <span class="arrow">&#9660;</span>
+      </button>
+      <div class="faq-answer">
+        We accept all major credit and debit cards (Visa, Mastercard, Amex), PayPal, and Apple Pay. All transactions are processed securely and we never store your payment details.
+      </div>
+    </div>
+
+  </div>
+</div>
+
+ <script src="https://localhost:5000/static/widget.js"></script>
+<bot-widget token="iVy92tlO2P6D24GNEDi6q8iaqtS6GFAFdjx_GHLEPc0"></bot-widget> 
+
+<script>
+  document.querySelectorAll('.faq-question').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const answer = btn.nextElementSibling;
+      const isOpen = btn.classList.contains('open');
+      document.querySelectorAll('.faq-question.open').forEach(b => {
+        b.classList.remove('open');
+        b.nextElementSibling.classList.remove('open');
+      });
+      if (!isOpen) {
+        btn.classList.add('open');
+        answer.classList.add('open');
+      }
+    });
+  });
+</script>
+{% endblock %}

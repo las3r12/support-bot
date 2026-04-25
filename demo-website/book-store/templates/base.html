@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}PageTurner Books{% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <nav>
+    <a class="nav-logo" href="/">PageTurner Books</a>
+    <div class="nav-links">
+      <a href="/">Catalogue</a>
+      <a href="/#faq">FAQ</a>
+    </div>
+  </nav>
+
+  {% block content %}{% endblock %}
+
+  <footer>
+    <p><strong>PageTurner Books</strong> &mdash; Free delivery on orders over $25 &mdash; &copy; 2025</p>
+  </footer>
+</body>
+</html>

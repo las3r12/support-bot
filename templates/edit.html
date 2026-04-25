@@ -25,7 +25,7 @@
         <div class="embed-section">
           <button class="btn-copy" onclick="copySnippet(this)">Copy</button>
           <div class="result" id="embed-snippet">
-            &lt;script src="http://localhost:5000/static/widget.js"&gt;&lt;/script&gt;<br>
+            &lt;script src="https://localhost:5000/static/widget.js"&gt;&lt;/script&gt;<br>
             &lt;bot-widget token="{{ token }}"&gt;&lt;/bot-widget&gt;
           </div>
         </div>
@@ -79,8 +79,7 @@
 
             <div class="tab-panel {% if not sources %}active{% endif %}" id="panel-add">
               <div class="divider">New Source</div>
-              <form class="add-source-form" method="POST" action="/edit/{{ token }}/add">
-                <input type="hidden" name="csrf_token" value="{{ session['csrf_token'] }}">
+              <form class="add-source-form" id="add-source-form" onsubmit="addSource(event)">
                 <input class="add-input" type="text" name="name" id="newSourceName" placeholder="Source name"
                   autocomplete="off" />
                 <div class="parse-section">
@@ -88,15 +87,28 @@
                   <div class="parse-row">
                     <input class="add-input" type="url" id="parseUrl" placeholder="https://example.com/page"
                       autocomplete="off" style="flex:1" />
-                    <input class="add-input" type="number" id="parseDepth" min="0" max="2" value="0"
-                      title="Crawl depth (0 = single page, max 2)" style="width:70px" />
-                    <button class="btn-parse" id="btn-parse" type="button" onclick="parsePage()">Parse</button>
+                    <input class="add-input" type="number" id="parseDepth" min="0" max="{{ max_scrape_depth }}" value="0"
+                      title="Crawl depth (0 = single page, max {{ max_scrape_depth }})" style="width:70px" />
+                    <button class="btn-parse" id="btn-find-links" type="button" onclick="findLinks()">Find Links</button>
+                  </div>
+                  <div id="links-picker" style="display:none; margin-top:0.75rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem;">
+                      <span class="section-label" style="margin:0;">
+                        Select pages to scrape <span id="links-count-label" style="font-weight:400; color:#6b7280;"></span>
+                      </span>
+                      <button class="btn-parse" type="button" id="btn-fetch-selected" onclick="fetchSelected()">Fetch Selected</button>
+                    </div>
+                    <div id="links-list" style="display:flex; flex-direction:column; gap:0.3rem; max-height:220px; overflow-y:auto; border:1px solid var(--border,#e5e7eb); border-radius:8px; padding:0.5rem;"></div>
+                    <p id="links-error" style="color:red; font-size:0.85rem; margin:0.4rem 0 0; display:none;"></p>
                   </div>
                 </div>
                 <textarea class="add-textarea" name="text" id="newSourceText" rows="5"
-                  placeholder="Knowledge text…"></textarea>
+                  placeholder="Knowledge text…" oninput="updateCharCount()"></textarea>
+                <div style="text-align:right; font-size:0.8rem; color:#6b7280; margin-top:0.25rem;">
+                  <span id="char-count">0</span> / {{ max_source_len }}
+                </div>
                 <div class="edit-actions">
-                  <button class="btn-save" type="submit">+ Add Source</button>
+                  <button class="btn-save" id="add-source-btn" type="submit">+ Add Source</button>
                 </div>
               </form>
               <p id="add-source-error" style="color: red; font-size: 0.9rem; margin: 0; display: none;"></p>
@@ -110,7 +122,9 @@
         <div class="vertical-tabs-layout">
           <div class="vtabs">
             <button class="tab-btn active" onclick="switchWidgetTab(0, this)">Bot Name</button>
-            <button class="tab-btn" onclick="switchWidgetTab(1, this)">Fallback Message</button>
+            <button class="tab-btn" onclick="switchWidgetTab(1, this)">Hello Message</button>
+            <button class="tab-btn" onclick="switchWidgetTab(2, this)">Fallback Message</button>
+            <button class="tab-btn" onclick="switchWidgetTab(3, this)">Bot Status</button>
           </div>
 
           <div class="tab-panels">
@@ -138,6 +152,29 @@
               </div>
             </div>
             <div class="tab-panel" id="widget-panel-1">
+              <div class="divider">Hello Message</div>
+              <p class="fallback-info">This is the first message the bot shows when the widget opens.</p>
+              <div class="knowledge-section">
+                <div class="section-header">
+                  <span class="section-title">
+                    <span class="status-dot"></span>
+                    Current Hello Message
+                  </span>
+                  <button class="edit-toggle" onclick="startHelloEdit()">✏ Edit</button>
+                </div>
+                <div class="knowledge-display" id="hello-msg-display">{{ hello_msg }}</div>
+                <div class="edit-panel" id="hello-msg-edit-panel">
+                  <textarea id="hello-msg-editor" rows="3" placeholder="Enter hello message…"></textarea>
+                  <div class="edit-actions">
+                    <button class="btn-cancel" onclick="cancelHelloEdit()">Cancel</button>
+                    <button class="btn-save" onclick="updateHelloMsg()">Save changes</button>
+                  </div>
+                  <p id="hello-msg-error" style="color: red; font-size: 0.9rem; margin: 0; display: none;"></p>
+                </div>
+                <div class="toast" id="hello-msg-toast"></div>
+              </div>
+            </div>
+            <div class="tab-panel" id="widget-panel-2">
               <div class="divider">Fallback Message</div>
               <p class="fallback-info">This is the message the bot sends when it doesn't know the answer. For instance,
                 you can write your email here so the customers will know how to contact you.</p>
@@ -150,21 +187,38 @@
                   <button class="edit-toggle" onclick="startWidgetEdit()">✏ Edit</button>
                 </div>
 
-                <div class="knowledge-display" id="widget-fallback-display">
-                  {{ fallback_msg }}
-                </div>
-
+                <div class="knowledge-display" id="widget-fallback-display">{{ fallback_msg }}</div>
                 <div class="edit-panel" id="widget-fallback-edit-panel">
                   <textarea id="widget-fallback-editor" rows="5" placeholder="Enter fallback message…"></textarea>
                   <div class="edit-actions">
                     <button class="btn-cancel" onclick="cancelWidgetEdit()">Cancel</button>
-                    <button class="btn-save" id="widget-fallback-save-btn" onclick="updateFallbackMessage()">Save
-                      changes</button>
+                    <button class="btn-save" id="widget-fallback-save-btn" onclick="updateFallbackMessage()">Save changes</button>
                   </div>
                   <p id="fallback-error" style="color: red; font-size: 0.9rem; margin: 0; display: none;"></p>
                 </div>
-
                 <div class="toast" id="widget-fallback-toast"></div>
+              </div>
+            </div>
+            <div class="tab-panel" id="widget-panel-3">
+              <div class="divider">Bot Status</div>
+              <p class="fallback-info">Enable or disable the bot. When disabled, the widget will not answer questions.</p>
+              <div class="knowledge-section">
+                <div class="section-header">
+                  <span class="section-title">
+                    <span class="status-dot"></span>
+                    Bot is currently
+                    <strong id="bot-enabled-label">{{ 'Enabled' if bot_enabled else 'Disabled' }}</strong>
+                  </span>
+                </div>
+                <div style="padding: 1rem 0; display: flex; align-items: center; gap: 1rem;">
+                  <button
+                    class="btn-save {{ 'btn-danger' if bot_enabled else '' }}"
+                    id="bot-toggle-btn"
+                    data-enabled="{{ 'true' if bot_enabled else 'false' }}"
+                    onclick="toggleBotEnabled()"
+                  >{{ 'Disable Bot' if bot_enabled else 'Enable Bot' }}</button>
+                  <p id="bot-enabled-error" style="color: red; font-size: 0.9rem; margin: 0; display: none;"></p>
+                </div>
               </div>
             </div>
             </div>
@@ -177,13 +231,22 @@
   </div>
 
   <script>
+    const MAX_SOURCE_LEN = {{ max_source_len }};
+
+    function updateCharCount() {
+      const len = document.getElementById('newSourceText').value.length;
+      const el = document.getElementById('char-count');
+      el.textContent = len;
+      el.style.color = len > MAX_SOURCE_LEN ? '#dc2626' : '#6b7280';
+    }
+
     function switchPageTab(idx, btn) {
       document.querySelectorAll('.page-tab').forEach((b, i) => b.classList.toggle('active', i === idx));
       document.querySelectorAll('.page-panel').forEach((p, i) => p.classList.toggle('active', i === idx));
     }
 
     function copySnippet(btn) {
-      const text = `<script src="http://localhost:5000/static/widget.js"><\/script>\n<bot-widget token="{{ token }}"></bot-widget>`;
+      const text = `<script src="https://localhost:5000/static/widget.js"><\/script>\n<bot-widget token="{{ token }}"></bot-widget>`;
       navigator.clipboard.writeText(text).then(() => {
         btn.textContent = '✓ Copied';
         btn.classList.add('copied');
@@ -254,17 +317,6 @@
       else {
         location.href = location.href;
       }
-
-      /*
-      const display = document.getElementById('display-' + idx);
-      if (newText) {
-        display.textContent = newText;
-        display.classList.remove('empty');
-      } else {
-        display.textContent = 'No knowledge data available.';
-        display.classList.add('empty');
-      }
-        */
     }
 
     function showToast(idx, type, msg) {
@@ -315,6 +367,44 @@
       if (!res.ok) {
         const data = await res.json();
         const err = document.getElementById('bot-name-error');
+        err.textContent = data.error;
+        err.style.display = 'block';
+      } else {
+        location.href = location.href;
+      }
+    }
+
+    function startHelloEdit() {
+      const display = document.getElementById('hello-msg-display');
+      const editPanel = document.getElementById('hello-msg-edit-panel');
+      const editor = document.getElementById('hello-msg-editor');
+      const toggle = document.querySelector('#widget-panel-1 .edit-toggle');
+      editor.value = display.textContent.trim();
+      display.classList.add('hidden');
+      editPanel.classList.add('visible');
+      toggle.style.display = 'none';
+      editor.focus();
+    }
+
+    function cancelHelloEdit() {
+      const display = document.getElementById('hello-msg-display');
+      const editPanel = document.getElementById('hello-msg-edit-panel');
+      const toggle = document.querySelector('#widget-panel-1 .edit-toggle');
+      editPanel.classList.remove('visible');
+      display.classList.remove('hidden');
+      toggle.style.display = '';
+    }
+
+    async function updateHelloMsg() {
+      const editor = document.getElementById('hello-msg-editor');
+      const res = await fetch("/edit/{{ token }}/hello/update", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': '{{ session["csrf_token"] }}' },
+        body: JSON.stringify({ data: editor.value.trim() })
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        const err = document.getElementById('hello-msg-error');
         err.textContent = data.error;
         err.style.display = 'block';
       } else {
@@ -377,33 +467,143 @@
       }
     }
 
-    async function parsePage() {
-      const urlInput = document.getElementById('parseUrl');
-      const btn = document.getElementById('btn-parse');
-      const url = urlInput.value.trim();
-      const depth = Math.min(2, Math.max(0, parseInt(document.getElementById('parseDepth').value) || 0));
+    async function addSource(event) {
+      event.preventDefault();
+      const btn = document.getElementById('add-source-btn');
+      const errEl = document.getElementById('add-source-error');
+      const form = document.getElementById('add-source-form');
+      errEl.style.display = 'none';
+
+      btn.disabled = true;
+      btn.textContent = 'Adding…';
+
+      const res = await fetch('/edit/{{ token }}/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': '{{ session["csrf_token"] }}' },
+        body: JSON.stringify({ name: document.getElementById('newSourceName').value, text: document.getElementById('newSourceText').value })
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        errEl.textContent = data.error;
+        errEl.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = '+ Add Source';
+      } else {
+        location.href = location.href;
+      }
+    }
+
+    async function toggleBotEnabled() {
+      const btn = document.getElementById('bot-toggle-btn');
+      const label = document.getElementById('bot-enabled-label');
+      const err = document.getElementById('bot-enabled-error');
+      const currentlyEnabled = btn.dataset.enabled === 'true';
+      btn.disabled = true;
+      const res = await fetch('/edit/{{ token }}/enabled/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': '{{ session["csrf_token"] }}' },
+        body: JSON.stringify({ enabled: !currentlyEnabled })
+      });
+      btn.disabled = false;
+      if (res.ok) {
+        const nowEnabled = !currentlyEnabled;
+        btn.dataset.enabled = nowEnabled ? 'true' : 'false';
+        btn.textContent = nowEnabled ? 'Disable Bot' : 'Enable Bot';
+        btn.classList.toggle('btn-danger', nowEnabled);
+        label.textContent = nowEnabled ? 'Enabled' : 'Disabled';
+        err.style.display = 'none';
+      } else {
+        const data = await res.json().catch(() => ({}));
+        err.textContent = data.error || 'Error saving setting';
+        err.style.display = 'block';
+      }
+    }
+
+    async function findLinks() {
+      const url = document.getElementById('parseUrl').value.trim();
+      const depth = Math.min({{ max_scrape_depth }}, Math.max(0, parseInt(document.getElementById('parseDepth').value) || 0));
+      const btn = document.getElementById('btn-find-links');
+      const picker = document.getElementById('links-picker');
+      const listEl = document.getElementById('links-list');
+      const errEl = document.getElementById('links-error');
       if (!url) return;
 
       btn.disabled = true;
-      btn.textContent = 'Parsing…';
+      btn.textContent = 'Finding…';
+      picker.style.display = 'none';
+      errEl.style.display = 'none';
 
       try {
-        const res = await fetch('/api/scarp', {
+        const res = await fetch('/api/scarp/links', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': '{{ session["csrf_token"] }}' },
           body: JSON.stringify({ url, depth })
         });
-        if (!res.ok) throw new Error(`Server error: ${res.status}`);
         const data = await res.json();
-        document.getElementById('newSourceText').value = data.text;
+        if (!res.ok) throw new Error(data.error || `Server error: ${res.status}`);
+
+        const maxSelect = data.max_select;
+        listEl.innerHTML = '';
+        listEl.dataset.maxSelect = maxSelect;
+        data.links.forEach(link => {
+          const label = document.createElement('label');
+          label.style.cssText = 'display:flex; align-items:center; gap:0.5rem; font-size:0.85rem; cursor:pointer; word-break:break-all;';
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.value = link;
+          cb.addEventListener('change', updateLinkCount);
+          label.appendChild(cb);
+          label.appendChild(document.createTextNode(link));
+          listEl.appendChild(label);
+        });
+        updateLinkCount();
+        picker.style.display = 'block';
       } catch (err) {
-        const t = document.getElementById('toast-add');
-        t.className = 'toast error visible';
-        t.textContent = '✗ Failed to parse: ' + err.message;
-        setTimeout(() => { t.className = 'toast'; }, 4000);
+        errEl.textContent = '✗ ' + err.message;
+        errEl.style.display = 'block';
+        picker.style.display = 'block';
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Parse';
+        btn.textContent = 'Find Links';
+      }
+    }
+
+    function updateLinkCount() {
+      const maxSelect = parseInt(document.getElementById('links-list').dataset.maxSelect) || 20;
+      const checked = document.querySelectorAll('#links-list input[type=checkbox]:checked');
+      document.getElementById('links-count-label').textContent = `(${checked.length}/${maxSelect} selected)`;
+      document.querySelectorAll('#links-list input[type=checkbox]:not(:checked)').forEach(cb => {
+        cb.disabled = checked.length >= maxSelect;
+      });
+    }
+
+    async function fetchSelected() {
+      const urls = [...document.querySelectorAll('#links-list input[type=checkbox]:checked')].map(cb => cb.value);
+      const errEl = document.getElementById('links-error');
+      const btn = document.getElementById('btn-fetch-selected');
+      errEl.style.display = 'none';
+      if (!urls.length) return;
+
+      btn.disabled = true;
+      btn.textContent = 'Fetching…';
+
+      try {
+        const res = await fetch('/api/scarp/fetch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': '{{ session["csrf_token"] }}' },
+          body: JSON.stringify({ urls })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `Server error: ${res.status}`);
+        document.getElementById('newSourceText').value = data.text;
+        updateCharCount();
+      } catch (err) {
+        errEl.textContent = '✗ ' + err.message;
+        errEl.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Fetch Selected';
       }
     }
   </script>

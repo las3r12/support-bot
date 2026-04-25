@@ -7,7 +7,7 @@ from argon2.exceptions import VerifyMismatchError
 from embedder import Embedder
 
 class Database:
-    def __init__(self, config: dict, minconn: int = 2, maxconn: int = 10):
+    def __init__(self, config: dict, minconn: int = 2, maxconn: int = 10, retrieval_distance_threshold: float = None, retrieval_top_k: int = None):
         self._pool = ThreadedConnectionPool(
             minconn, maxconn,
             dbname=config['db_name'],
@@ -21,7 +21,9 @@ class Database:
             memory_cost=65536,
             parallelism=2,
         )
-        self.embedder = Embedder()
+        self.embedder = Embedder(config['embedding_model_path'])
+        self.retrieval_distance_threshold = retrieval_distance_threshold
+        self.retrieval_top_k = retrieval_top_k
         self.dummy_hash = self.ph.hash("dummy")
 
 
@@ -49,22 +51,24 @@ class Database:
                 VALUES (%s, %s, %s, %s)
             """, (text_id, i, chunk, vector))
 
-    def retrieve(self, domain_token: str, question: str, top_k: int = 5):
+    def retrieve(self, domain_token: str, question: str):
         q_vector = self.embedder.embed([question])[0]
         try:
             with self._conn() as conn:
                 with conn.cursor() as cur:
                     cur.execute("""
-                        SELECT text_chunks.chunk_text
+                        SELECT text_chunks.chunk_text, text_chunks.embedding <=> %s::vector AS distance
                         FROM text_chunks
                         JOIN texts ON texts.id = text_chunks.text_id
                         JOIN data ON data.id = texts.data_id
                         WHERE data.token = %s
-                        AND text_chunks.embedding <=> %s::vector < 0.4
-                        ORDER BY text_chunks.embedding <=> %s::vector
+                        ORDER BY distance
                         LIMIT %s
-                    """, (domain_token, q_vector,q_vector, top_k))
-                    return [row[0] for row in cur.fetchall()]
+                    """, (q_vector, domain_token, self.retrieval_top_k))
+                    rows = cur.fetchall()
+                    if not rows or rows[0][1] >= self.retrieval_distance_threshold:
+                        return []
+                    return [row[0] for row in rows]
         except Exception as e:
             print(e)
             return []
@@ -99,18 +103,47 @@ class Database:
             with self._conn() as conn:
                 with conn.cursor() as cur:
                     cur.execute(
+                        "SELECT EXISTS(SELECT 1 FROM data WHERE user_id=%s AND domain=%s)",
+                        (user_id, domain),
+                    )
+                    if cur.fetchone()[0]:
+                        return False
+                    cur.execute(
                         "INSERT INTO data (user_id, domain, token) VALUES (%s, %s, %s);",
                         (user_id, domain, token),
                     )
+            return True
         except Exception as e:
             print(e)
             return None
+
+    def count_sources(self, data_token: str) -> int:
+        try:
+            with self._conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT COUNT(*) FROM texts "
+                        "WHERE data_id IN (SELECT id FROM data WHERE token=%s)",
+                        (data_token,),
+                    )
+                    return cur.fetchone()[0]
+        except Exception as e:
+            print(e)
+            return 0
 
     def add_source(self, data_token: str, name: str, text: str):
         token = secrets.token_urlsafe(32)
         try:
             with self._conn() as conn:
                 with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT EXISTS("
+                        "SELECT 1 FROM texts WHERE data_id=(SELECT id FROM data WHERE token=%s) AND name=%s"
+                        ")",
+                        (data_token, name),
+                    )
+                    if cur.fetchone()[0]:
+                        return False
                     cur.execute(
                         "INSERT INTO texts (data_id, name, descr, token) VALUES "
                         "((SELECT id FROM data WHERE token=%s), %s, %s, %s) RETURNING id",
@@ -122,20 +155,6 @@ class Database:
             print(e)
             return None
 
-    def update_source(self, source_token: str, new_text: str):
-        try:
-            with self._conn() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        "UPDATE texts SET descr=%s WHERE token=%s RETURNING id",
-                        (new_text, source_token),
-                    )
-                    row = cur.fetchone()
-                    if row:
-                        self._sync_chunks(cur, row[0], new_text)
-        except Exception as e:
-            print(e)
-            return None
 
     def get_all_texts(self, domain_token: str):
         try:
@@ -180,16 +199,30 @@ class Database:
             print(e)
             return None
 
+    def get_username(self, user_id: int):
+        try:
+            with self._conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT username FROM users WHERE id=%s",
+                        (user_id,),
+                    )
+                    row = cur.fetchone()
+                    return row[0] if row else None
+        except Exception as e:
+            print(e)
+            return None
+
     def check_password(self, username: str, password: str):
         try:
             with self._conn() as conn:
                 with conn.cursor() as cur:
                     cur.execute(
-                        "SELECT id, password FROM users WHERE username=%s",
+                        "SELECT id, password, enabled FROM users WHERE username=%s",
                         (username,),
                     )
                     row = cur.fetchone()
-                    if row and self.ph.verify(row[1], password):
+                    if row and self.ph.verify(row[1], password) and row[2]:
                         return row[0]
                     else:
                         self.ph.verify(self.dummy_hash, password)
@@ -300,6 +333,48 @@ class Database:
             print(e)
             return False
 
+    def get_hello_msg(self, domain_token: str):
+        try:
+            with self._conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT hello_msg FROM data WHERE token=%s", (domain_token,))
+                    row = cur.fetchone()
+                    return row[0] if row else 'Hello! How can I help you today?'
+        except Exception as e:
+            print(e)
+            return 'Hello! How can I help you today?'
+
+    def update_hello_msg(self, domain_token: str, msg: str):
+        try:
+            with self._conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("UPDATE data SET hello_msg=%s WHERE token=%s", (msg, domain_token))
+            return True
+        except Exception as e:
+            print(e)
+            return False
+
+    def get_bot_enabled(self, domain_token: str) -> bool:
+        try:
+            with self._conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT bot_enabled FROM data WHERE token=%s", (domain_token,))
+                    row = cur.fetchone()
+                    return row[0] if row else True
+        except Exception as e:
+            print(e)
+            return True
+
+    def set_bot_enabled(self, domain_token: str, enabled: bool):
+        try:
+            with self._conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("UPDATE data SET bot_enabled=%s WHERE token=%s", (enabled, domain_token))
+            return True
+        except Exception as e:
+            print(e)
+            return False
+
     def get_fallback(self, domain_token):
         try:
             with self._conn() as conn:
@@ -318,9 +393,9 @@ class Database:
             with self._conn() as conn:
                 with conn.cursor() as cur:
                     cur.execute(
-                        "SELECT id, username, credits FROM users ORDER BY username"
+                        "SELECT id, username, credits, enabled FROM users ORDER BY username"
                     )
-                    return [{'id': r[0], 'username': r[1], 'credits': r[2]} for r in cur.fetchall()]
+                    return [{'id': r[0], 'username': r[1], 'credits': r[2], 'enabled': r[3]} for r in cur.fetchall()]
         except Exception as e:
             print(e)
             return []
@@ -330,10 +405,42 @@ class Database:
             with self._conn() as conn:
                 with conn.cursor() as cur:
                     cur.execute(
-                        "UPDATE users SET credits=%s WHERE id=%s AND user_role='user'",
+                        "UPDATE users SET credits=%s WHERE id=%s",
                         (credits, user_id),
                     )
             return True
+        except Exception as e:
+            print(e)
+            return False
+
+    def disable_user(self, user_id: int):
+        try:
+            with self._conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE users SET enabled=FALSE WHERE id=%s RETURNING id",
+                        (user_id,),
+                    )
+                    row = cur.fetchone()
+                    if row:
+                        cur.execute(
+                            "UPDATE data SET bot_enabled=FALSE WHERE user_id=%s",
+                            (user_id,),
+                        )
+                    return row is not None
+        except Exception as e:
+            print(e)
+            return False
+
+    def enable_user(self, user_id: int):
+        try:
+            with self._conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE users SET enabled=TRUE WHERE id=%s AND RETURNING id",
+                        (user_id,),
+                    )
+                    return cur.fetchone() is not None
         except Exception as e:
             print(e)
             return False

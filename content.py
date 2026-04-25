@@ -48,7 +48,7 @@ class Scraper:
             links = []
             if depth < max_depth:
                 for tag in soup.find_all("a", href=True):
-                    link = urljoin(url, tag['href'])
+                    link = self._normalize(urljoin(url, tag['href']).split("#")[0])
                     parsed = urlparse(link)
                     if parsed.netloc == domain and parsed.scheme in ("http", "https"):
                         links.append(link)
@@ -57,38 +57,53 @@ class Scraper:
             print(f"Failed {url}: {e}")
             return None, []
 
-    def crawl(self, start_url, max_depth=0):
+    def _normalize(self, url: str) -> str:
+        return url.rstrip("/")
+
+    def get_links(self, start_url: str, max_links: int, max_depth: int = 0) -> list[str]:
         if not self._is_safe_url(start_url):
             raise ValueError(f"Blocked URL: {start_url}")
+        start_url = self._normalize(start_url)
         visited = {start_url}
-        results = []
+        links = [start_url]
         queue = deque([(start_url, 0)])
         domain = urlparse(start_url).netloc
         lock = threading.Lock()
 
         def worker(url, depth):
-            text, links = self._fetch(url, depth, domain, max_depth)
+            _, found_links = self._fetch(url, depth, domain, max_depth)
             with lock:
-                if text:
-                    results.append(text)
-                if depth < max_depth:
-                    for link in links:
-                        if link not in visited:
-                            visited.add(link)
-                            queue.append((link, depth + 1))
-        while queue:
+                for link in found_links:
+                    link = self._normalize(link)
+                    if link not in visited and len(links) < max_links:
+                        visited.add(link)
+                        links.append(link)
+                        queue.append((link, depth + 1))
+
+        while queue and len(links) < max_links:
             batch = []
             while queue:
-                url, depth = queue.popleft()
-                batch.append((url, depth))
-
+                batch.append(queue.popleft())
             threads = [threading.Thread(target=worker, args=(url, depth)) for url, depth in batch]
-            for t in threads:
-                t.start()
-            for t in threads:
-                t.join()
+            for t in threads: t.start()
+            for t in threads: t.join()
 
-        return results
+        return links[:max_links]
+
+    def fetch_pages(self, urls: list[str]) -> str:
+        results = []
+        lock = threading.Lock()
+
+        def worker(url):
+            text, _ = self._fetch(url, 0, urlparse(url).netloc, 0)
+            if text:
+                with lock:
+                    results.append(text)
+
+        threads = [threading.Thread(target=worker, args=(url,)) for url in urls]
+        for t in threads: t.start()
+        for t in threads: t.join()
+        return "\n\n".join(results)
     
     def _is_safe_url(self, url: str) -> bool:
         parsed = urlparse(url)

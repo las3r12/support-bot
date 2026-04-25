@@ -309,6 +309,8 @@ body.app-layout h1 {
   box-shadow: 0 8px 20px rgba(34,197,94,0.45);
 }
 .btn-save:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+.btn-save.btn-danger { background: linear-gradient(135deg, #ef4444, #f87171); box-shadow: 0 4px 12px rgba(239,68,68,0.35); }
+.btn-save.btn-danger:hover { background: linear-gradient(135deg, #dc2626, #ef4444); box-shadow: 0 8px 20px rgba(239,68,68,0.45); }
 
 .btn-cancel {
   background: none;
