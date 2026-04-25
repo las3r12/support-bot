@@ -55,11 +55,16 @@ class LLMClient:
 
     def _complete(self, prompt: str) -> dict:
         payload = json.dumps({
-            "model": self.model,
+            "model": self._model,
             "messages": [{"role": "user", "content": prompt}]
         })
         response = self._post(payload)
-        return json.loads(json.loads(response)['choices'][0]['message']['content'])
+        try:
+            content = json.loads(response)['choices'][0]['message']['content']
+            return json.loads(content)
+        except Exception as e:
+            print(f"LLM parse error: {e}\nRaw response: {content}")
+            return {"status": "fallback"}
 
     def _post(self, data: str) -> str:
         body = data.encode()
