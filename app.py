@@ -1,34 +1,61 @@
 from flask import Flask, request, jsonify, session, redirect, render_template, make_response, abort
 from db_pool import Database
 from api import LLMClient
+from functools import wraps
+from dotenv import load_dotenv
 import json
 import os
 import content
 import secrets
 from content import Scraper
 from rate_limit import IPRateLimiter
+from datetime import timedelta
 
+load_dotenv()
 
 with open("resources/config.json") as f:
     config = json.load(f)
 
+config['db_name'] = os.environ['DB_NAME']
+config['db_user'] = os.environ['DB_USER']
+config['db_password'] = os.environ['DB_PASSWORD']
+
 db = Database(config, retrieval_distance_threshold=config['retrieval_distance_threshold'], retrieval_top_k=config['retrieval_top_k'])
 scarper = Scraper(timeout=config['scraper_timeout'])
-llm = LLMClient(config['llm_key'], config['max_context_len'], config['model'])
+llm = LLMClient(os.environ['LLM_KEY'], config['max_context_len'], config['model'])
 rate_limiter = IPRateLimiter(config["rate_limit_per_ip"], config["rate_limit_window_sec"])
 widget_rate_limiter = IPRateLimiter(config["rate_limit_widget_per_ip"], config["rate_limit_widget_window_sec"])
 app = Flask(__name__)
-#app.secret_key = os.urandom(24)
-app.secret_key = 'g'
+
+app.secret_key = os.environ['SECRET_KEY']
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=config["session_lifetime_hours"])
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
+
+
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if 'user_id' not in session or db.get_role(session['user_id']) is None:
+            session.clear()
+            if request.method == 'GET':
+                return redirect("/login")
+            return {"error": "Invalid Credentials"}, 403
+        return f(*args, **kwargs)
+    return decorated
 
 
 @app.errorhandler(413)
 def request_too_large(_):
     return jsonify({"error": f"Content is too large (max {config['max_source_len']} characters)"}), 413
+
+@app.errorhandler(403)
+def forbidden(_):
+    if request.method == 'GET':
+        return render_template("403.html"), 403
+    return jsonify({"error": "Forbidden"}), 403
 
 @app.before_request
 def check_rate_limit():
@@ -118,16 +145,14 @@ def login():
     return render_template("login.html")
 
 @app.route("/", methods=["GET"])
+@login_required
 def index():
-    if "user_id" not in session:
-        return redirect("/login")
     data = db.get_data(session['user_id'])
     return render_template('index.html', domains=data)
 
 @app.route("/create", methods=["POST"])
+@login_required
 def create():
-    if "user_id" not in session:
-        return {"error" : "Invalid Credentials"}, 403
     domain = request.form.get("domain", "").strip()
     if not domain:
         return {"error": "Domain can't be empty"}, 400
@@ -143,10 +168,8 @@ def create():
     return redirect("/")
 
 @app.route("/edit/<token>/add", methods=["POST"])
+@login_required
 def add_data_source(token):
-    print("add_data_source reached, content-length:", request.content_length)
-    if "user_id" not in session:
-        return {"status" : "Invalid Credentials"}, 403
     if not db.check_data_token(session['user_id'], token):
         return {"status" : "Invalid Credentials"}, 403
     name = request.json.get("name", "")
@@ -167,9 +190,8 @@ def add_data_source(token):
 
 
 @app.route("/edit/<token>/delete", methods=["POST"])
+@login_required
 def remove_data_source(token):
-    if "user_id" not in session:
-        return {"status" : "Invalid Credentials"}, 403
     if not db.check_data_token(session['user_id'], token):
         return {"status" : "Invalid Credentials"}, 403
     db.remove_website(token)
@@ -208,7 +230,6 @@ def ask_question():
     history = str(data.get('history', ''))[:config["max_history_len"]]
     try:
         answer = llm.get_answer(question, history, token, db)
-        print(answer)
     except Exception as e:
         print(e)
     db.deduct_credit(token)
@@ -222,9 +243,8 @@ def ask_question():
     return response
 
 @app.route("/edit/<token>", methods=["GET"])
+@login_required
 def send_edit_page(token):
-    if "user_id" not in session:
-        return redirect("/login")
     if not db.check_data_token(session['user_id'], token):
         return redirect("/")
     data = db.get_all_texts(token)
@@ -236,9 +256,8 @@ def send_edit_page(token):
 
 
 @app.route("/edit/update/<token>", methods=["POST"])
+@login_required
 def update_text(token):
-    if "user_id" not in session:
-        return {"error" : "Invalid Credentials"}, 403
     json_data = request.json
     if not db.check_token(session['user_id'], token):
         return {"error" : "Invalid Credentials"}, 403
@@ -251,9 +270,8 @@ def update_text(token):
     return {}, 200
 
 @app.route("/edit/delete/<token>", methods=["POST"])
+@login_required
 def delete_text(token):
-    if "user_id" not in session:
-        return {"error" : "Invalid Credentials"}, 403
     if not db.check_token(session['user_id'], token):
         return {"error" : "Invalid Credentials"}, 403
     db.remove_text(token)
@@ -268,9 +286,8 @@ def bot_info(token):
     return response
 
 @app.route("/edit/<token>/name/update", methods=["POST"])
+@login_required
 def update_bot_name(token):
-    if "user_id" not in session:
-        return {"error": "Invalid Credentials"}, 403
     if not db.check_data_token(session['user_id'], token):
         return {"error": "Invalid Credentials"}, 403
     name = request.json.get("data", "").strip()
@@ -282,9 +299,8 @@ def update_bot_name(token):
     return {}, 200
 
 @app.route("/edit/<token>/enabled/update", methods=["POST"])
+@login_required
 def update_bot_enabled(token):
-    if "user_id" not in session:
-        return {"error": "Invalid Credentials"}, 403
     if not db.check_data_token(session['user_id'], token):
         return {"error": "Invalid Credentials"}, 403
     enabled = request.json.get("enabled")
@@ -294,9 +310,8 @@ def update_bot_enabled(token):
     return {}, 200
 
 @app.route("/edit/<token>/hello/update", methods=["POST"])
+@login_required
 def update_hello_msg(token):
-    if "user_id" not in session:
-        return {"error": "Invalid Credentials"}, 403
     if not db.check_data_token(session['user_id'], token):
         return {"error": "Invalid Credentials"}, 403
     msg = request.json.get("data", "").strip()
@@ -308,9 +323,8 @@ def update_hello_msg(token):
     return {}, 200
 
 @app.route("/edit/<token>/fallback/update", methods=["POST"])
+@login_required
 def update_fallback(token):
-    if "user_id" not in session:
-        return {"error" : "Invalid Credentials"}, 403
     json_data = request.json
     if not db.check_data_token(session['user_id'], token):
         return {"error" : "Invalid Credentials"}, 403
@@ -321,9 +335,8 @@ def update_fallback(token):
     return {}, 200
 
 @app.route("/api/scarp/links", methods=["POST"])
+@login_required
 def scarp_links():
-    if "user_id" not in session:
-        return {"error": "Invalid Credentials"}, 403
     url = request.json.get("url")
     if not url:
         return {"error": "No URL provided"}, 400
@@ -335,9 +348,8 @@ def scarp_links():
     return {"links": links, "max_select": config["max_scrape_select"]}, 200
 
 @app.route("/api/scarp/fetch", methods=["POST"])
+@login_required
 def scarp_fetch():
-    if "user_id" not in session:
-        return {"error": "Invalid Credentials"}, 403
     urls = request.json.get("urls", [])
     if not isinstance(urls, list) or not urls:
         return {"error": "No URLs provided"}, 400
@@ -353,17 +365,15 @@ def scarp_fetch():
     return {"text": text}, 200
 
 @app.route("/account", methods=["GET"])
+@login_required
 def account():
-    if "user_id" not in session:
-        return redirect("/login")
     credits = db.get_credits_by_user(session["user_id"])
     username = db.get_username(session["user_id"])
     return render_template("account.html", credits=credits, username=username)
 
 @app.route("/account/password", methods=["POST"])
+@login_required
 def change_password():
-    if "user_id" not in session:
-        return {"error": "Invalid Credentials"}, 403
     json_data = request.json
     old_pw = json_data.get("old_password", "")
     new_pw = json_data.get("new_password", "")
@@ -375,18 +385,16 @@ def change_password():
     return {}, 200
 
 @app.route("/admin", methods=["GET"])
+@login_required
 def admin():
-    if "user_id" not in session:
-        return redirect("/login")
     if db.get_role(session["user_id"]) != "admin":
         abort(403)
     users = db.get_users()
     return render_template("admin.html", users=users)
 
 @app.route("/admin/credits/<int:user_id>", methods=["POST"])
+@login_required
 def update_credits(user_id):
-    if "user_id" not in session:
-        return {"error": "Invalid Credentials"}, 403
     if db.get_role(session["user_id"]) != "admin":
         abort(403)
     json_data = request.json
@@ -397,9 +405,8 @@ def update_credits(user_id):
     return {}, 200
 
 @app.route("/admin/disable/<int:user_id>", methods=["POST"])
+@login_required
 def disable_user(user_id):
-    if "user_id" not in session:
-        return {"error": "Invalid Credentials"}, 403
     if db.get_role(session["user_id"]) != "admin":
         abort(403)
     if not db.disable_user(user_id):
@@ -407,9 +414,8 @@ def disable_user(user_id):
     return {}, 200
 
 @app.route("/admin/enable/<int:user_id>", methods=["POST"])
+@login_required
 def enable_user(user_id):
-    if "user_id" not in session:
-        return {"error": "Invalid Credentials"}, 403
     if db.get_role(session["user_id"]) != "admin":
         abort(403)
     if not db.enable_user(user_id):

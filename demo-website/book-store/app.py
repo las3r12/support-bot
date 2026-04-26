@@ -130,6 +130,101 @@ BOOKS = [
             "your dreams and finding meaning in the journey itself."
         ),
     },
+    {
+        "id": "pride-and-prejudice",
+        "title": "Pride and Prejudice",
+        "author": "Jane Austen",
+        "price": 9.99,
+        "cover": "https://covers.openlibrary.org/b/id/8739161-L.jpg",
+        "genre": "Romantic Fiction",
+        "pages": 432,
+        "published": 1813,
+        "isbn": "978-0-14-143951-8",
+        "description": (
+            "When the Bennet family's five daughters need husbands, the arrival of "
+            "wealthy Mr. Bingley and his aloof friend Mr. Darcy sets hearts racing "
+            "and tongues wagging. Elizabeth Bennet, the sharpest of the sisters, "
+            "clashes with Darcy in a battle of wits that slowly gives way to "
+            "something deeper. Austen's most beloved novel is a razor-sharp comedy "
+            "of manners and one of literature's greatest love stories."
+        ),
+    },
+    {
+        "id": "moby-dick",
+        "title": "Moby-Dick",
+        "author": "Herman Melville",
+        "price": 13.99,
+        "cover": "https://covers.openlibrary.org/b/id/8091016-L.jpg",
+        "genre": "Adventure Fiction",
+        "pages": 635,
+        "published": 1851,
+        "isbn": "978-0-14-243723-7",
+        "description": (
+            "Call me Ishmael. So begins one of the most ambitious novels in the "
+            "English language. Sailor Ishmael joins the crew of the Pequod, captained "
+            "by the obsessive Ahab, who is hell-bent on hunting the white whale that "
+            "took his leg. Part adventure, part philosophical meditation, Melville's "
+            "epic is a towering exploration of obsession, fate, and humanity's "
+            "struggle against nature."
+        ),
+    },
+    {
+        "id": "the-odyssey",
+        "title": "The Odyssey",
+        "author": "Homer",
+        "price": 10.49,
+        "cover": "https://covers.openlibrary.org/b/id/8114609-L.jpg",
+        "genre": "Epic Poetry",
+        "pages": 374,
+        "published": -800,
+        "isbn": "978-0-14-044911-2",
+        "description": (
+            "After ten years fighting in Troy, the cunning hero Odysseus faces ten "
+            "more years of perilous voyaging before he can return home to Ithaca. "
+            "Facing cyclops, sirens, sea monsters, and the wrath of gods, his journey "
+            "home becomes the definitive story of endurance and homecoming. Homer's "
+            "epic poem, written around 800 BC, is the foundation of Western "
+            "storytelling."
+        ),
+    },
+    {
+        "id": "don-quixote",
+        "title": "Don Quixote",
+        "author": "Miguel de Cervantes",
+        "price": 15.49,
+        "cover": "https://covers.openlibrary.org/b/id/8221822-L.jpg",
+        "genre": "Satirical Fiction",
+        "pages": 863,
+        "published": 1605,
+        "isbn": "978-0-06-093434-8",
+        "description": (
+            "A middle-aged nobleman so consumed by tales of chivalry that he renames "
+            "himself Don Quixote and sets out as a knight-errant, accompanied by his "
+            "loyal squire Sancho Panza. Together they tilt at windmills, mistake "
+            "inns for castles, and blunder through a Spain that has no room for their "
+            "idealism. Widely considered the first modern novel and one of the "
+            "greatest works ever written."
+        ),
+    },
+    {
+        "id": "jane-eyre",
+        "title": "Jane Eyre",
+        "author": "Charlotte Brontë",
+        "price": 10.99,
+        "cover": "https://covers.openlibrary.org/b/id/8739185-L.jpg",
+        "genre": "Gothic Fiction",
+        "pages": 507,
+        "published": 1847,
+        "isbn": "978-0-14-144114-6",
+        "description": (
+            "Orphaned Jane Eyre grows up plain, poor, and fiercely principled. As "
+            "governess at Thornfield Hall she falls for her brooding employer "
+            "Mr. Rochester — but the house holds a terrible secret. Brontë's "
+            "landmark novel was revolutionary in placing a woman's inner moral life "
+            "at the centre of the story, and its passion and atmosphere have never "
+            "dimmed."
+        ),
+    },
 ]
 
 BOOK_INDEX = {b["id"]: b for b in BOOKS}
@@ -148,10 +243,20 @@ def book(book_id):
     return render_template("book.html", book=b)
 
 
+@app.route("/about")
+def about():
+    return render_template("about.html")
+
+
+@app.route("/contact")
+def contact():
+    return render_template("contact.html")
+
+
 @app.errorhandler(404)
 def not_found(e):
     return render_template("404.html"), 404
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5001)
+    app.run(debug=True, port=5001, host="0.0.0.0")

@@ -1,8 +1,9 @@
 import socket
 import json
+import re
 import ssl
 import secrets
-
+from json_repair import repair_json
 
 class LLMClient:
     def __init__(self, token: str, max_context_len: int, model: str):
@@ -21,8 +22,6 @@ class LLMClient:
             context = db.get_all_text(key)
         else:
             context = "\n\n".join(chunks)
-            print(chunks)
-
         def build_prompt(ctx):
             data_nonce = self._generate_nonce()
             history_nonce = self._generate_nonce()
@@ -45,6 +44,7 @@ class LLMClient:
             return filled_prompt + "\n" + data_block + "\n" + history_block + "\n" + question_block
 
         resp = self._complete(build_prompt(context))
+        
         if resp['status'] == 'fallback' and chunks:
             resp = self._complete(build_prompt(db.get_all_text(key)))
         return resp
@@ -56,15 +56,16 @@ class LLMClient:
     def _complete(self, prompt: str) -> dict:
         payload = json.dumps({
             "model": self._model,
-            "messages": [{"role": "user", "content": prompt}]
+            "messages": [{"role": "user", "content": prompt}],
         })
         response = self._post(payload)
         try:
             content = json.loads(response)['choices'][0]['message']['content']
-            return json.loads(content)
+            return self.parse_llm_json(content)
         except Exception as e:
-            print(f"LLM parse error: {e}\nRaw response: {content}")
-            return {"status": "fallback"}
+            print(f"LLM parse error: {e}\nRaw response: {response}")
+            return {"status": "fallback", "response": None}
+
 
     def _post(self, data: str) -> str:
         body = data.encode()
@@ -89,8 +90,11 @@ class LLMClient:
                 resp += chunk
         finally:
             sock.close()
-        _, _, body_raw = resp.partition(b"\r\n\r\n")
-        return self._decode_chunked(body_raw)
+        headers_raw, _, body_raw = resp.partition(b"\r\n\r\n")
+        headers = headers_raw.decode(errors="replace").lower()
+        if "transfer-encoding: chunked" in headers:
+            return self._decode_chunked(body_raw)
+        return body_raw.decode()
 
     def _decode_chunked(self, data: bytes) -> str:
         body = b""
@@ -107,4 +111,11 @@ class LLMClient:
         chars = "abcdefghijklmnopqrstuvwxyz0123456789"
         return "".join(secrets.choice(chars) for _ in range(8))
     
+    def parse_llm_json(self, raw):
+        cleaned = raw.strip().removeprefix("```json").removesuffix("```").strip()
+        try:
+            return json.loads(cleaned)
+        except json.JSONDecodeError:
+            return json.loads(repair_json(cleaned))
+
 
