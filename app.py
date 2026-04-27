@@ -21,7 +21,7 @@ config['db_user'] = os.environ['DB_USER']
 config['db_password'] = os.environ['DB_PASSWORD']
 
 db = Database(config, retrieval_distance_threshold=config['retrieval_distance_threshold'], retrieval_top_k=config['retrieval_top_k'])
-scarper = Scraper(timeout=config['scraper_timeout'])
+scarper = Scraper(timeout=config['scraper_timeout'], max_page_bytes=config['max_scrape_page_bytes'])
 llm = LLMClient(os.environ['LLM_KEY'], config['max_context_len'], config['model'])
 rate_limiter = IPRateLimiter(config["rate_limit_per_ip"], config["rate_limit_window_sec"])
 widget_rate_limiter = IPRateLimiter(config["rate_limit_widget_per_ip"], config["rate_limit_widget_window_sec"])

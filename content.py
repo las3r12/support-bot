@@ -8,8 +8,9 @@ import socket
 
 
 class Scraper:
-    def __init__(self, timeout=5):
+    def __init__(self, timeout, max_page_bytes):
         self.timeout = timeout
+        self.max_page_bytes = max_page_bytes
         self.headers = {
             "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:149.0) Gecko/20100101 Firefox/149.0",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -27,31 +28,30 @@ class Scraper:
             "Cache-Control": "no-cache",
         }
 
-    def get_page(self, url):
-        response = requests.get(url, headers=self.headers)
-        soup = BeautifulSoup(response.text, "html.parser")
-        for tag in soup(["script", "style", "noscript", "header", "footer", "nav"]):
-            tag.decompose()
-        text = soup.get_text(separator="\n", strip=True)
-        return text
 
-    def _fetch(self, url, depth, domain, max_depth):
+    def _fetch(self, url, domain):
         if not self._is_safe_url(url):
             return None, []
         try:
-            resp = requests.get(url, timeout=self.timeout, headers=self.headers)
+            resp = requests.get(url, timeout=self.timeout, headers=self.headers, stream=True)
             if "text/html" not in resp.headers.get("Content-Type", ''):
+                resp.close()
                 return None, []
-            soup = BeautifulSoup(resp.text, "html.parser")
+            raw = b""
+            for chunk in resp.iter_content(chunk_size=8192):
+                raw += chunk
+                if len(raw) >= self.max_page_bytes:
+                    break
+            resp.close()
+            soup = BeautifulSoup(raw, "html.parser")
             for tag in soup(["script", "style", "nav", "footer"]):
                 tag.decompose()
             links = []
-            if depth < max_depth:
-                for tag in soup.find_all("a", href=True):
-                    link = self._normalize(urljoin(url, tag['href']).split("#")[0])
-                    parsed = urlparse(link)
-                    if parsed.netloc == domain and parsed.scheme in ("http", "https"):
-                        links.append(link)
+            for tag in soup.find_all("a", href=True):
+                link = self._normalize(urljoin(url, tag['href']).split("#")[0])
+                parsed = urlparse(link)
+                if parsed.netloc == domain and parsed.scheme in ("http", "https"):
+                    links.append(link)
             return soup.get_text(separator=" ", strip=True), links
         except Exception as e:
             print(f"Failed {url}: {e}")
@@ -71,14 +71,17 @@ class Scraper:
         lock = threading.Lock()
 
         def worker(url, depth):
-            _, found_links = self._fetch(url, depth, domain, max_depth)
-            with lock:
-                for link in found_links:
-                    link = self._normalize(link)
+            if depth >= max_depth:
+                return
+            _, found_links = self._fetch(url, domain)
+            for link in found_links:
+                link = self._normalize(link)
+                with lock:
                     if link not in visited and len(links) < max_links:
                         visited.add(link)
                         links.append(link)
                         queue.append((link, depth + 1))
+        
 
         while queue and len(links) < max_links:
             batch = []
@@ -95,7 +98,7 @@ class Scraper:
         lock = threading.Lock()
 
         def worker(url):
-            text, _ = self._fetch(url, 0, urlparse(url).netloc, 0)
+            text, _ = self._fetch(url, urlparse(url).netloc)
             if text:
                 with lock:
                     results.append(text)
@@ -116,5 +119,4 @@ class Scraper:
             ip = ipaddress.ip_address(socket.getaddrinfo(hostname, None)[0][4][0])
         except Exception:
             return False
-        #return True
         return ip.is_global and not ip.is_loopback and not ip.is_private and not ip.is_link_local
