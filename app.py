@@ -290,7 +290,7 @@ def bot_info(token):
 def update_bot_name(token):
     if not db.check_data_token(session['user_id'], token):
         return {"error": "Invalid Credentials"}, 403
-    name = request.json.get("data", "").strip()
+    name = request.json.get("data", "").replace("\n", " ").strip()
     if not name:
         return {"error": "Bot name can't be empty"}, 400
     if len(name) > config['max_bot_name_length']:
