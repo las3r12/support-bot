@@ -156,8 +156,8 @@ def create():
     domain = request.form.get("domain", "").strip()
     if not domain:
         return {"error": "Domain can't be empty"}, 400
-    if len(domain) > 200:
-        return {"error": "Domain must be 200 characters or less"}, 400
+    if len(domain) > config['max_domain_length']:
+        return {"error": f"Domain must be {config['max_domain_length']} characters or less"}, 400
     if len(db.get_data(session['user_id'])) >= config['max_domains_per_account']:
         return {"error": f"Maximum of {config['max_domains_per_account']} domains per account"}, 400
     result = db.add_website(domain, session['user_id'])
@@ -293,8 +293,8 @@ def update_bot_name(token):
     name = request.json.get("data", "").strip()
     if not name:
         return {"error": "Bot name can't be empty"}, 400
-    if len(name) > 200:
-        return {"error": "Bot name must be 200 characters or less"}, 400
+    if len(name) > config['max_bot_name_length']:
+        return {"error": f"Bot name must be {config['max_bot_name_length']} characters or less"}, 400
     db.update_bot_name(token, name)
     return {}, 200
 

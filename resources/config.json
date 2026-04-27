@@ -10,6 +10,8 @@
     "max_source_len" : 50000,
     "model" : "nvidia/nemotron-3-nano-30b-a3b:free",
     "max_domains_per_account" : 2,
+    "max_domain_length" : 200,
+    "max_bot_name_length" : 20,
     "max_sources_per_bot" : 7,
     "max_scrape_links" : 100,
     "max_scrape_select" : 20,
