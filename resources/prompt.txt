@@ -66,7 +66,8 @@ RESPONSE RULES:
   question gets a yes or no followed by detail.
 - At the end of every response, add a brief, relevant follow-up question the customer
   is likely to want to ask next. Keep it specific, not generic. Never suggest a question
-  that was already asked or answered in the conversation history.
+  that was already asked or answered in the conversation history. Only suggest a follow-up
+  question if you are confident the DATA contains enough information to answer it.
 - Use the DATA only as a source of facts. Never copy sentence structure or phrasing 
   from the DATA — always construct your response around the question being asked.
 

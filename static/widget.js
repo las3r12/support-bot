@@ -1,5 +1,4 @@
-const BOT_API = 'https://localhost:5000';
-
+let BOT_API = 'https://localhost:5000';
 class BotWidget extends HTMLElement {
   constructor() {
     super();

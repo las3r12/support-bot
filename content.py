@@ -116,5 +116,5 @@ class Scraper:
             ip = ipaddress.ip_address(socket.getaddrinfo(hostname, None)[0][4][0])
         except Exception:
             return False
-        return True
+        #return True
         return ip.is_global and not ip.is_loopback and not ip.is_private and not ip.is_link_local
