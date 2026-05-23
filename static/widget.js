@@ -69,7 +69,6 @@ class BotWidget extends HTMLElement {
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
-        /* ── Window ── */
         .chat-window {
           width: 320px;
           height: 440px;
@@ -85,7 +84,6 @@ class BotWidget extends HTMLElement {
           overflow: hidden;
         }
 
-        /* ── Header ── */
         .chat-header {
           padding: 14px 16px 12px;
           border-bottom: 1px solid var(--border);
@@ -140,7 +138,6 @@ class BotWidget extends HTMLElement {
           50%       { opacity: 0.4; }
         }
 
-        /* ── Messages ── */
         .messages {
           flex: 1;
           overflow-y: auto;
@@ -165,7 +162,6 @@ class BotWidget extends HTMLElement {
           overscroll-behavior: contain;
         }
 
-        /* ── Bubbles ── */
         .msg {
           display: flex;
           flex-direction: column;
@@ -212,7 +208,6 @@ class BotWidget extends HTMLElement {
           padding: 0 3px;
         }
 
-        /* ── Empty state ── */
         .empty-state {
           flex: 1;
           display: flex;
@@ -228,7 +223,6 @@ class BotWidget extends HTMLElement {
 
         .empty-icon { font-size: 1.8rem; margin-bottom: 2px; opacity: 0.6; }
 
-        /* ── Typing indicator ── */
         .typing-indicator { display: none; }
         .typing-indicator.visible { display: flex; }
 
@@ -259,7 +253,6 @@ class BotWidget extends HTMLElement {
           30%            { transform: translateY(-4px); opacity: 1; }
         }
 
-        /* ── Input area ── */
         .chat-input-area {
           padding: 10px 12px;
           border-top: 1px solid var(--border);
@@ -349,7 +342,6 @@ class BotWidget extends HTMLElement {
           fill: var(--muted);
         }
 
-        /* ── Minimized state ── */
         :host(.minimized) .chat-window {
           height: auto;
         }
