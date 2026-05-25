@@ -232,6 +232,11 @@ def ask_question():
         answer = llm.get_answer(question, history, token, db)
     except Exception as e:
         print(e)
+        answer = db.get_fallback(token)
+        data = jsonify({"answer": answer})
+        response = make_response(data)
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        return response
     db.deduct_credit(token)
     if (answer['status'] == 'fallback'):
         answer = db.get_fallback(token)
