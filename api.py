@@ -22,7 +22,7 @@ class LLMClient:
             context = db.get_all_text(key)
         else:
             context = "\n\n".join(chunks)
-        def build_prompt(ctx):
+        def build_prompt(ctx, complete):
             data_nonce = self._generate_nonce()
             history_nonce = self._generate_nonce()
             question_nonce = self._generate_nonce()
@@ -39,14 +39,15 @@ class LLMClient:
             available = self._max_context_len - overhead
             if available <= 0:
                 raise ValueError("Context length too small")
-            data_block = self._wrap_tagged(ctx[:available], "DATA", data_nonce)
+            data_tag = "DATA_COMPLETE" if complete else "DATA_PARTIAL"
+            data_block = self._wrap_tagged(ctx[:available], data_tag, data_nonce)
 
             return filled_prompt + "\n" + data_block + "\n" + history_block + "\n" + question_block
 
-        resp = self._complete(build_prompt(context))
-        
+        resp = self._complete(build_prompt(context, complete=not chunks))
+
         if resp['status'] == 'fallback' and chunks:
-            resp = self._complete(build_prompt(db.get_all_text(key)))
+            resp = self._complete(build_prompt(db.get_all_text(key), complete=True))
         return resp
 
     def _wrap_tagged(self, data: str, tag: str, nonce: str) -> str:
